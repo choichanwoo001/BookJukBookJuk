@@ -1,6 +1,6 @@
 from openai import AsyncOpenAI
 
-from clustering import TasteCluster
+from .clustering import TasteCluster
 
 
 def _build_cluster_description(cluster: TasteCluster, idx: int) -> str:

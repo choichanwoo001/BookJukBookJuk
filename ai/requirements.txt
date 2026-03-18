@@ -3,3 +3,16 @@ httpx>=0.27.0
 scikit-learn>=1.4.0
 numpy>=1.26.0
 python-dotenv>=1.0.0
+matplotlib>=3.8.0
+networkx>=3.3
+
+# hybrid_recommender 추가 의존성
+torch>=2.3.0
+langchain>=0.2.0
+langchain-openai>=0.1.0
+
+# 선택적: KG 저장소 (Neo4j 미설치 시 NetworkX 로 자동 폴백)
+neo4j>=5.20.0
+
+# 선택적: 대규모 벡터 DB (미설치 시 numpy 인메모리로 자동 폴백)
+pinecone-client>=3.2.0

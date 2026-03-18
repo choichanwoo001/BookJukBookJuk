@@ -4,7 +4,7 @@ from collections import defaultdict
 import numpy as np
 from openai import AsyncOpenAI
 
-from library_api import BookInfo, BookKeyword
+from .library_api import BookInfo, BookKeyword
 
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIM = 1536
