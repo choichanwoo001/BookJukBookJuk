@@ -223,7 +223,11 @@ class ColdStartEmbedder:
     async def embed_rich_book(self, ctx: BookContext) -> np.ndarray:
         """키워드/설명이 풍부한 책의 임베딩 벡터를 생성한다.
 
-        키워드 가중 평균 + 소개글 임베딩을 혼합한다.
+        키워드 가중 평균 + 긴 텍스트(소개/요약) 임베딩을 혼합한다.
+
+        설계 의도:
+        - 긴 서술 텍스트(소개/위키 요약)는 "임베딩"에만 반영한다. (KG 노드로 확장 금지)
+        - 짧고 정규화 가능한 정보(키워드)는 벡터에 가중 반영하되 과도한 키워드 폭증은 제한한다.
         """
         texts_to_embed: list[str] = []
         weights: list[float] = []
@@ -231,12 +235,17 @@ class ColdStartEmbedder:
         # 소개글 임베딩
         if ctx.description:
             texts_to_embed.append(ctx.description[:500])
-            weights.append(0.5)
+            weights.append(0.45)
+
+        # Wikipedia 요약 임베딩 (길지만 의미 밀도가 높아 벡터에만 반영)
+        if ctx.wiki_book_summary:
+            texts_to_embed.append(ctx.wiki_book_summary[:450])
+            weights.append(0.15)
 
         # 키워드 임베딩 (상위 10개, 가중치 적용)
         for kw in ctx.keywords[:10]:
             texts_to_embed.append(kw.word)
-            weights.append(kw.weight * 0.5)
+            weights.append(kw.weight * 0.40)
 
         if not texts_to_embed:
             # 폴백: 제목만 임베딩

@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>북적북적 하이브리드 추천 파이프라인</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
+
+  :root {
+    --bg: #0a0c14;
+    --panel: #111420;
+    --border: #1e2340;
+    --p1: #6c63ff;
+    --p1-dim: #2d2b5e;
+    --p2: #00c9a7;
+    --p2-dim: #0a3d34;
+    --p3: #ff7043;
+    --p3-dim: #4a1f10;
+    --p4: #ffd740;
+    --p4-dim: #4a3d0a;
+    --text: #e8eaf6;
+    --muted: #5c6396;
+    --line: #2a3050;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Noto Sans KR', sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 24px;
+    overflow-x: hidden;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  .header h1 {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+
+  .header h1 span { color: var(--p1); }
+
+  .header p {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── 입력/출력 행 ── */
+  .io-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    max-width: 1200px;
+    margin: 0 auto 20px;
+  }
+
+  .io-box {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 8px;
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    text-align: center;
+  }
+
+  .io-box .io-label {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .io-box .io-content {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* ── 전체 파이프라인 ── */
+  .pipeline {
+    display: flex;
+    gap: 0;
+    align-items: flex-start;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .phase-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* 페이즈 카드 */
+  .phase {
+    width: 100%;
+    border-radius: 12px;
+    padding: 18px 14px;
+    border: 1.5px solid var(--border);
+    background: var(--panel);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .phase::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .phase-1::before { background: var(--p1); }
+  .phase-2::before { background: var(--p2); }
+  .phase-3::before { background: var(--p3); }
+  .phase-4::before { background: var(--p4); }
+
+  .phase:hover { transform: translateY(-4px); }
+  .phase-1:hover { border-color: var(--p1); box-shadow: 0 12px 40px rgba(108,99,255,0.25); }
+  .phase-2:hover { border-color: var(--p2); box-shadow: 0 12px 40px rgba(0,201,167,0.25); }
+  .phase-3:hover { border-color: var(--p3); box-shadow: 0 12px 40px rgba(255,112,67,0.25); }
+  .phase-4:hover { border-color: var(--p4); box-shadow: 0 12px 40px rgba(255,215,64,0.25); }
+
+  .phase.active { transform: translateY(-4px); }
+  .phase-1.active { border-color: var(--p1); box-shadow: 0 12px 40px rgba(108,99,255,0.35); }
+  .phase-2.active { border-color: var(--p2); box-shadow: 0 12px 40px rgba(0,201,167,0.35); }
+  .phase-3.active { border-color: var(--p3); box-shadow: 0 12px 40px rgba(255,112,67,0.35); }
+  .phase-4.active { border-color: var(--p4); box-shadow: 0 12px 40px rgba(255,215,64,0.35); }
+
+  .phase-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+  }
+  .phase-1 .phase-badge { background: var(--p1-dim); color: var(--p1); }
+  .phase-2 .phase-badge { background: var(--p2-dim); color: var(--p2); }
+  .phase-3 .phase-badge { background: var(--p3-dim); color: var(--p3); }
+  .phase-4 .phase-badge { background: var(--p4-dim); color: var(--p4); }
+
+  .phase-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .phase-subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+
+  /* 모듈 칩 */
+  .modules {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .module {
+    padding: 7px 10px;
+    border-radius: 7px;
+    font-size: 11.5px;
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    transition: background 0.15s;
+  }
+
+  .phase-1 .module { background: rgba(108,99,255,0.08); border: 1px solid rgba(108,99,255,0.15); }
+  .phase-2 .module { background: rgba(0,201,167,0.08); border: 1px solid rgba(0,201,167,0.15); }
+  .phase-3 .module { background: rgba(255,112,67,0.08); border: 1px solid rgba(255,112,67,0.15); }
+  .phase-4 .module { background: rgba(255,215,64,0.08); border: 1px solid rgba(255,215,64,0.15); }
+
+  .module-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .module-name { font-weight: 700; font-size: 11.5px; }
+  .module-desc { font-size: 10px; color: var(--muted); margin-top: 1px; line-height: 1.4; }
+
+  /* 화살표 */
+  .connector {
+    display: flex;
+    align-items: flex-start;
+    padding: 0 4px;
+    padding-top: 52px;
+    flex-shrink: 0;
+  }
+
+  .arrow-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .arrow-body {
+    width: 24px;
+    height: 2px;
+    position: relative;
+  }
+
+  .arrow-body::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: -4px;
+    border: 5px solid transparent;
+    border-left: 8px solid;
+  }
+
+  .arr-1 .arrow-body { background: var(--p1); }
+  .arr-1 .arrow-body::after { border-left-color: var(--p2); }
+  .arr-2 .arrow-body { background: var(--p2); }
+  .arr-2 .arrow-body::after { border-left-color: var(--p3); }
+  .arr-3 .arrow-body { background: var(--p3); }
+  .arr-3 .arrow-body::after { border-left-color: var(--p4); }
+
+  /* 파라미터 태그 */
+  .param-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 10px;
+  }
+  .param-tag {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #151825;
+    border: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .param-tag span { color: var(--p2); }
+
+  /* 디테일 패널 */
+  .detail-panel {
+    max-width: 1200px;
+    margin: 28px auto 0;
+    padding: 22px 24px;
+    border-radius: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    display: none;
+    animation: fadeUp 0.25s ease;
+  }
+
+  .detail-panel.visible { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .detail-header {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .detail-section h4 {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-section ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .detail-section li {
+    font-size: 12px;
+    color: var(--muted);
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.6;
+  }
+
+  .detail-section li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    font-size: 9px;
+    top: 3px;
+  }
+
+  .detail-section li strong { color: var(--text); }
+
+  .formula-box {
+    background: #0d1020;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-top: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 2;
+    white-space: pre;
+  }
+
+  .formula-box .var { color: #82aaff; }
+  .formula-box .op { color: var(--p3); }
+  .formula-box .num { color: var(--p2); }
+  .formula-box .comment { color: var(--muted); }
+
+  /* 하단 데이터 흐름 */
+  .flow-footer {
+    max-width: 1200px;
+    margin: 28px auto 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 16px;
+    background: var(--panel);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .flow-label {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .flow-chip {
+    padding: 6px 14px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  .flow-arrow {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 6px;
+  }
+
+  .hint {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>북적북적 <span>하이브리드 추천 파이프라인</span></h1>
+  <p>Knowledge Graph + RippleNet + Hybrid Scoring + XAI &nbsp;|&nbsp; HybridRecommenderPipeline</p>
+</div>
+
+<div class="io-row">
+  <div class="io-box">
+    <div class="io-label">INPUT</div>
+    <div class="io-content" style="color:#6c63ff">ISBN 목록 &nbsp;/&nbsp; 사용자 독서 이력 (add_books + user_profile)</div>
+  </div>
+  <div class="io-box">
+    <div class="io-label">OUTPUT</div>
+    <div class="io-content" style="color:#ffd740">ExplainedRecommendation [ ] &nbsp;—&nbsp; 추천 도서 + 점수 + 이유 + KG 경로</div>
+  </div>
+</div>
+
+<div class="pipeline">
+
+  <!-- PHASE 1 -->
+  <div class="phase-wrap">
+    <div class="phase phase-1" id="ph1" onclick="toggle(1)">
+      <div class="phase-badge">PHASE 1</div>
+      <div class="phase-title">KG 자동 구축</div>
+      <div class="phase-subtitle">도서 데이터 수집 → LLM 엔티티 추출<br>→ 노이즈 필터링 → KG 저장</div>
+      <div class="modules">
+        <div class="module">
+          <span class="module-icon">📡</span>
+          <div>
+            <div class="module-name">DataCollector</div>
+            <div class="module-desc">알라딘 · 정보나루 · Wikipedia API</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">🧠</span>
+          <div>
+            <div class="module-name">EntityExtractor</div>
+            <div class="module-desc">GPT-4o-mini Function Calling</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">🔬</span>
+          <div>
+            <div class="module-name">NoiseFilter</div>
+            <div class="module-desc">confidence threshold 이하 트리플 제거</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">🕸️</span>
+          <div>
+            <div class="module-name">NetworkXKGStore</div>
+            <div class="module-desc">11종 엔티티 · 9종 관계 트리플 저장</div>
+          </div>
+        </div>
+      </div>
+      <div class="param-tags">
+        <div class="param-tag">noise_threshold=<span>0.50</span></div>
+        <div class="param-tag">model=<span>gpt-4o-mini</span></div>
+        <div class="param-tag">concurrency=<span>3</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector arr-1">
+    <div class="arrow-wrap">
+      <div class="arrow-body"></div>
+    </div>
+  </div>
+
+  <!-- PHASE 2 -->
+  <div class="phase-wrap">
+    <div class="phase phase-2" id="ph2" onclick="toggle(2)">
+      <div class="phase-badge">PHASE 2</div>
+      <div class="phase-title">임베딩 + RippleNet</div>
+      <div class="phase-subtitle">콜드스타트 처리 → OpenAI 임베딩<br>→ 벡터 저장 → RippleNet 스코어러</div>
+      <div class="modules">
+        <div class="module">
+          <span class="module-icon">❄️</span>
+          <div>
+            <div class="module-name">ColdStartEmbedder</div>
+            <div class="module-desc">메타데이터 기반 폴백 임베딩</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">📐</span>
+          <div>
+            <div class="module-name">text-embedding-3-small</div>
+            <div class="module-desc">OpenAI 임베딩 (1536-dim)</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">🗄️</span>
+          <div>
+            <div class="module-name">BookVectorStore</div>
+            <div class="module-desc">인메모리 / Pinecone 지원</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">🌊</span>
+          <div>
+            <div class="module-name">RippleNetScorer</div>
+            <div class="module-desc">KG 확산 · n_hops=2 · decay=0.7</div>
+          </div>
+        </div>
+      </div>
+      <div class="param-tags">
+        <div class="param-tag">n_hops=<span>2</span></div>
+        <div class="param-tag">hop_decay=<span>0.7</span></div>
+        <div class="param-tag">dim=<span>1536</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector arr-2">
+    <div class="arrow-wrap">
+      <div class="arrow-body"></div>
+    </div>
+  </div>
+
+  <!-- PHASE 3 -->
+  <div class="phase-wrap">
+    <div class="phase phase-3" id="ph3" onclick="toggle(3)">
+      <div class="phase-badge">PHASE 3</div>
+      <div class="phase-title">하이브리드 스코어링</div>
+      <div class="phase-subtitle">α·Graph + (1-α)·Vector<br>동적 alpha로 콜드스타트 대응</div>
+      <div class="modules">
+        <div class="module">
+          <span class="module-icon">👤</span>
+          <div>
+            <div class="module-name">UserProfile</div>
+            <div class="module-desc">시간 감쇠 · richness 계산</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">⚖️</span>
+          <div>
+            <div class="module-name">Dynamic Alpha</div>
+            <div class="module-desc">α = α_min + (α_max − α_min)·richness</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">🎯</span>
+          <div>
+            <div class="module-name">후보 수집</div>
+            <div class="module-desc">벡터 유사도 + KG 확산 병합</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">📊</span>
+          <div>
+            <div class="module-name">HybridScorer</div>
+            <div class="module-desc">Final = α·Graph + (1-α)·Vector</div>
+          </div>
+        </div>
+      </div>
+      <div class="param-tags">
+        <div class="param-tag">α_min=<span>0.1</span></div>
+        <div class="param-tag">α_max=<span>0.7</span></div>
+        <div class="param-tag">pool=<span>top_k×3</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector arr-3">
+    <div class="arrow-wrap">
+      <div class="arrow-body"></div>
+    </div>
+  </div>
+
+  <!-- PHASE 4 -->
+  <div class="phase-wrap">
+    <div class="phase phase-4" id="ph4" onclick="toggle(4)">
+      <div class="phase-badge">PHASE 4</div>
+      <div class="phase-title">다양성 보정 + XAI</div>
+      <div class="phase-subtitle">MMR 재순위 → ε-greedy 탐색<br>→ LLM 추천 이유 생성</div>
+      <div class="modules">
+        <div class="module">
+          <span class="module-icon">🔀</span>
+          <div>
+            <div class="module-name">MMRReranker</div>
+            <div class="module-desc">λ·Rel − (1−λ)·maxSim(선택됨)</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">🎲</span>
+          <div>
+            <div class="module-name">EpsilonGreedyExplorer</div>
+            <div class="module-desc">ε=0.15 → 15% 랜덤 탐색 주입</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">💡</span>
+          <div>
+            <div class="module-name">RecommendationExplainer</div>
+            <div class="module-desc">LLM + KG 경로 기반 설명 생성</div>
+          </div>
+        </div>
+        <div class="module">
+          <span class="module-icon">📚</span>
+          <div>
+            <div class="module-name">ExplainedRecommendation</div>
+            <div class="module-desc">점수 · 이유 · KG 경로 최종 반환</div>
+          </div>
+        </div>
+      </div>
+      <div class="param-tags">
+        <div class="param-tag">mmr_λ=<span>0.6</span></div>
+        <div class="param-tag">ε=<span>0.15</span></div>
+        <div class="param-tag">with_explanation=<span>True</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 디테일 패널 -->
+<div class="detail-panel" id="detail">
+  <div class="detail-header" id="detail-title"></div>
+  <div class="detail-grid" id="detail-body"></div>
+</div>
+
+<!-- 하단 데이터 흐름 -->
+<div class="flow-footer">
+  <div class="flow-label">DATA FLOW</div>
+  <div class="flow-chip" style="background:#1a1740;color:#6c63ff;border:1px solid #2d2b5e">ISBN / 사용자 이력</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-chip" style="background:#0a1f1a;color:#00c9a7;border:1px solid #0d3d31">BookContext</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-chip" style="background:#0a1f1a;color:#00c9a7;border:1px solid #0d3d31">KG Triples + BookVector</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-chip" style="background:#2a1408;color:#ff7043;border:1px solid #4a2010">ScoredBook[ ]</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-chip" style="background:#1a1400;color:#ffd740;border:1px solid #3a3000">ExplainedRecommendation[ ]</div>
+</div>
+
+<p class="hint">▲ 각 Phase 카드를 클릭하면 상세 정보가 펼쳐집니다</p>
+
+<script>
+const details = {
+  1: {
+    title: '📡&nbsp; Phase 1 — KG 자동 구축',
+    color: '#6c63ff',
+    left: {
+      heading: '처리 흐름 (add_book)',
+      items: [
+        '<strong>collect_book_context()</strong> → 알라딘 TTB API로 제목·저자·설명 수집',
+        '<strong>Wikipedia</strong> 도서/저자 요약, 키워드, 추가 섹션 수집',
+        '<strong>정보나루 API</strong> → 대출 빈도, KDC 분류 수집',
+        '<strong>EntityExtractor.extract()</strong> → GPT-4o-mini Function Calling으로 KGEntity + KGTriple 자동 추출',
+        '<strong>NoiseFilter.filter_triples()</strong> → confidence < 0.50 트리플 제거',
+        '<strong>kg_store.add_node() / add_edge()</strong> → NetworkX 그래프에 저장',
+      ]
+    },
+    right: {
+      heading: '엔티티 유형 (11종)',
+      items: [
+        'Book · Author · Character · Theme · Genre',
+        'HistoricalPeriod · Concept · Award',
+        'Publisher · Series · Nationality',
+        '<strong>관계 유형:</strong> WRITTEN_BY, EXPLORES, SET_IN, HAS_CHARACTER, INFLUENCED_BY, AWARDED, SIMILAR_TO, PUBLISHED_BY, PART_OF_SERIES',
+        '<strong>폴백:</strong> LLM 실패 시 저자/출판사/KDC/키워드 규칙 기반 추출',
+      ]
+    },
+    formula: null
+  },
+  2: {
+    title: '🌊&nbsp; Phase 2 — 임베딩 + RippleNet',
+    color: '#00c9a7',
+    left: {
+      heading: 'ColdStartEmbedder + VectorStore',
+      items: [
+        '<strong>get_book_vector(ctx)</strong> → 제목+저자+설명 concat → OpenAI text-embedding-3-small 호출',
+        '임베딩 실패 시 <strong>ColdStart 폴백</strong>: 메타데이터 텍스트만으로 임베딩 생성',
+        '<strong>BookVectorStore.add()</strong> → 인메모리(기본) 또는 Pinecone에 저장',
+        '책 등록 후 <strong>_update_ripplenet_scorer()</strong> 자동 호출 → KG+벡터 동기화',
+      ]
+    },
+    right: {
+      heading: 'RippleNetScorer 알고리즘',
+      items: [
+        '<strong>① 사용자 선호 벡터:</strong> seed ISBN들의 시간가중 임베딩 평균 (정규화)',
+        '<strong>② KG 확산 (n_hops=2):</strong> seed→이웃→이웃2차 confidence×decay^hop 누적',
+        '<strong>③ 후보 점수 = max(직접도달, 이웃겹침, 코사인유사도)</strong>',
+        '최종: score = 0.6×KG_확산 + 0.4×코사인유사도',
+        '<strong>PyTorch RippleNet:</strong> 학습 데이터 축적 후 bilinear 어텐션 모델 사용 가능',
+      ]
+    },
+    formula: '<span class="var">user_pref</span> <span class="op">=</span> normalize( Σ <span class="var">w_i</span> · <span class="var">emb_i</span> )   <span class="comment">// 시드 가중 평균</span>\n<span class="var">ripple_w</span> <span class="op">=</span> <span class="var">conf</span> × <span class="num">0.7</span><sup>hop</sup>          <span class="comment">// hop_decay=0.7</span>\n<span class="var">score</span>    <span class="op">=</span> <span class="num">0.6</span>×<span class="var">kg_reach</span> <span class="op">+</span> <span class="num">0.4</span>×<span class="var">cosine</span>   <span class="comment">// 최종 그래프 점수</span>'
+  },
+  3: {
+    title: '📊&nbsp; Phase 3 — 하이브리드 스코어링',
+    color: '#ff7043',
+    left: {
+      heading: 'UserProfile & 동적 Alpha',
+      items: [
+        '<strong>richness</strong>: 사용자 행동 이력 풍부도 (0~1)',
+        '<strong>시간 감쇠</strong>: 최근 읽은 책일수록 seed_weight 높음',
+        '<strong>compute_alpha()</strong>: α = 0.1 + 0.6 × richness',
+        '신규 사용자(richness≈0) → α≈0.1 → 벡터 유사도 중심',
+        '헤비유저(richness≈1) → α≈0.7 → KG 그래프 점수 중심',
+      ]
+    },
+    right: {
+      heading: '후보 수집 & 스코어링',
+      items: [
+        '<strong>방법①:</strong> VectorStore.search() → 쿼리벡터 기준 코사인 top-N',
+        '<strong>방법②:</strong> KG 확산 1~2 hop Book 노드 수집',
+        '<strong>방법③:</strong> 후보 < 10개이면 전체 Book 폴백',
+        '<strong>최종 점수:</strong> Final = α·Graph + (1-α)·Vector',
+        '이미 읽은 책은 자동 제외 (exclude_isbns)',
+      ]
+    },
+    formula: '<span class="var">α</span> <span class="op">=</span> <span class="num">0.1</span> <span class="op">+</span> (<span class="num">0.7</span> <span class="op">-</span> <span class="num">0.1</span>) × <span class="var">richness</span>\n<span class="var">Final</span> <span class="op">=</span> <span class="var">α</span> × <span class="var">Graph_Score</span> <span class="op">+</span> (<span class="num">1</span><span class="op">-</span><span class="var">α</span>) × <span class="var">Vector_Score</span>'
+  },
+  4: {
+    title: '💡&nbsp; Phase 4 — 다양성 보정 + XAI',
+    color: '#ffd740',
+    left: {
+      heading: 'MMR + Epsilon-Greedy',
+      items: [
+        '<strong>MMRReranker</strong>: 후보 top_k×3에서 MMR로 재선택',
+        'MMR(i) = λ·Rel(i) − (1−λ)·max_{j∈S} Sim(i,j)',
+        'λ=0.6: 관련성 60% + 다양성 40% 균형',
+        '<strong>EpsilonGreedyExplorer</strong>: ε=0.15 → 최종 5권 중 ~1권 랜덤 탐색',
+        '필터 버블 방지: 비슷한 장르만 추천되는 현상 완화',
+      ]
+    },
+    right: {
+      heading: 'XAI 설명 생성',
+      items: [
+        '<strong>RecommendationExplainer</strong>: LLM에 KG 경로 + 책 정보 전달',
+        '<strong>KG 경로 추출</strong>: seed → 중간엔티티 → 추천책 최단경로',
+        '<strong>explain_batch()</strong>: 추천 도서별 설명 병렬 생성',
+        '출력: ExplainedRecommendation (점수+이유+KG경로)',
+        'with_explanation=False → 설명 생략, 빠른 실행 가능',
+      ]
+    },
+    formula: '<span class="var">MMR</span>(i) <span class="op">=</span> <span class="num">0.6</span>·<span class="var">Rel</span>(i) <span class="op">-</span> <span class="num">0.4</span>·max<sub>j∈S</sub> <span class="var">Sim</span>(i,j)\n<span class="var">n_explore</span> <span class="op">=</span> round( top_k × <span class="num">0.15</span> )  <span class="comment">// ε-greedy</span>'
+  }
+};
+
+let openPhase = null;
+
+function toggle(n) {
+  const panel = document.getElementById('detail');
+  const d = details[n];
+
+  if (openPhase === n) {
+    panel.classList.remove('visible');
+    document.getElementById('ph'+n).classList.remove('active');
+    openPhase = null;
+    return;
+  }
+
+  if (openPhase) document.getElementById('ph'+openPhase).classList.remove('active');
+
+  openPhase = n;
+  document.getElementById('ph'+n).classList.add('active');
+
+  document.getElementById('detail-title').innerHTML =
+    `<span style="color:${d.color}">${d.title}</span>`;
+
+  const formulaHtml = d.formula
+    ? `<div class="formula-box">${d.formula}</div>`
+    : '';
+
+  document.getElementById('detail-body').innerHTML = `
+    <div class="detail-section">
+      <h4 style="color:${d.color}">${d.left.heading}</h4>
+      <ul>${d.left.items.map(i=>`<li>${i}</li>`).join('')}</ul>
+    </div>
+    <div class="detail-section">
+      <h4 style="color:${d.color}">${d.right.heading}</h4>
+      <ul>${d.right.items.map(i=>`<li>${i}</li>`).join('')}</ul>
+      ${formulaHtml}
+    </div>
+  `;
+
+  panel.classList.add('visible');
+  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+}
+</script>
+</body>
+</html>

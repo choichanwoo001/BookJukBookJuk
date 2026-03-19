@@ -99,6 +99,57 @@ VALID_ENTITY_TYPES = {
     "HistoricalPeriod", "Concept", "Award", "Publisher", "Series", "Nationality",
 }
 
+MAX_ENTITY_LABEL_LEN = 40
+MAX_ENTITY_DESC_LEN = 80
+MAX_CONCEPT_ENTITIES = 12
+
+ENTITY_ID_PREFIX_BY_TYPE: dict[str, str] = {
+    "Book": "book:",
+    "Author": "author:",
+    "Character": "character:",
+    "Theme": "theme:",
+    "Genre": "genre:",
+    "HistoricalPeriod": "period:",
+    "Concept": "concept:",
+    "Award": "award:",
+    "Publisher": "publisher:",
+    "Series": "series:",
+    "Nationality": "nationality:",
+}
+
+
+def _normalize_compact(text: str) -> str:
+    """노드 라벨/ID에 쓰일 짧은 명사구로 정규화한다."""
+    t = (text or "").strip()
+    # 줄바꿈/탭 제거, 과도한 공백 정리
+    t = " ".join(t.replace("\t", " ").replace("\n", " ").split())
+    # 따옴표류 제거
+    t = t.strip(" \"'“”‘’")
+    return t
+
+
+def _looks_like_sentence(label: str) -> bool:
+    """문장형 라벨(길고 구두점 많은 형태)을 대략 판별한다."""
+    s = _normalize_compact(label)
+    if len(s) > MAX_ENTITY_LABEL_LEN:
+        return True
+    if any(p in s for p in (".", "?", "!", "…")):
+        return True
+    # 조사/서술이 섞인 긴 구절은 KG 엔티티로 부적합한 경우가 많다
+    if ("다" in s[-2:]) and len(s) > 18:
+        return True
+    return False
+
+
+def _coerce_entity_id(entity_type: str, raw_id: str, label: str) -> str:
+    prefix = ENTITY_ID_PREFIX_BY_TYPE.get(entity_type, "concept:")
+    rid = _normalize_compact(raw_id)
+    if rid.startswith(prefix) and len(rid) > len(prefix):
+        return rid
+    # prefix가 없거나 잘못된 경우: label 기반으로 재생성
+    base = _normalize_compact(label) or rid
+    return f"{prefix}{base}" if base else f"{prefix}unknown"
+
 
 @dataclass
 class KGEntity:
@@ -131,6 +182,8 @@ _SYSTEM_PROMPT = """당신은 도서 지식 그래프 전문가입니다.
 주어진 도서 정보 텍스트를 분석하여 엔티티와 관계 트리플을 추출하세요.
 
 추출 기준:
+- 엔티티 label 은 반드시 2~20자 내외의 "짧은 명사구"만 사용하세요. 문장/요약/설명문을 엔티티로 만들지 마세요.
+- 엔티티는 정규화된 타입/ID 규칙을 지키세요. (author:, theme:, genre:, publisher:, award:, series:, concept:, period:, character:, nationality:, book:)
 - 명확하게 언급된 관계만 높은 신뢰도(0.8~1.0)로 추출하세요
 - 텍스트에서 암시되는 관계는 중간 신뢰도(0.5~0.7)로 표시하세요
 - 추측에 불과한 관계는 낮은 신뢰도(0.3~0.4)로 표시하거나 제외하세요
@@ -206,16 +259,64 @@ class EntityExtractor:
             print(f"[WARN] LLM 엔티티 추출 실패 ({ctx.title}): {e}")
             return self._fallback_extract(ctx)
 
-        entities = [
-            KGEntity(
-                id=e.get("id", f"unknown:{e.get('label', '')}"),
-                type=e.get("type", "Concept"),
-                label=e.get("label", ""),
-                description=e.get("description", ""),
-            )
-            for e in raw.get("entities", [])
-            if e.get("id") and e.get("label")
-        ]
+        raw_entities = raw.get("entities", []) or []
+        entities: list[KGEntity] = []
+
+        # 항상 book 노드는 포함 (LLM 출력이 이상해도 KG가 끊기지 않게)
+        book_key = ctx.isbn13 or ctx.title
+        book_id = f"book:{book_key}"
+        entities.append(KGEntity(
+            id=book_id,
+            type="Book",
+            label=_normalize_compact(ctx.title)[:MAX_ENTITY_LABEL_LEN] or book_key,
+            description=_normalize_compact(ctx.description)[:MAX_ENTITY_DESC_LEN],
+        ))
+
+        for e in raw_entities:
+            if not isinstance(e, dict):
+                continue
+            etype = str(e.get("type") or "Concept")
+            label = _normalize_compact(str(e.get("label") or ""))
+            if not label:
+                continue
+            if etype not in VALID_ENTITY_TYPES:
+                etype = "Concept"
+            # 문장형/긴 라벨은 KG 엔티티로 저장하지 않는다 (긴 텍스트는 임베딩 역할)
+            if _looks_like_sentence(label):
+                continue
+
+            eid = _coerce_entity_id(etype, str(e.get("id") or ""), label)
+            desc = _normalize_compact(str(e.get("description") or ""))[:MAX_ENTITY_DESC_LEN]
+            entities.append(KGEntity(
+                id=eid,
+                type=etype,
+                label=label[:MAX_ENTITY_LABEL_LEN],
+                description=desc,
+            ))
+
+        # Concept 과다 생성 방지: 상한 적용 (나머지는 임베딩으로 흡수)
+        concepts = [x for x in entities if x.type == "Concept"]
+        if len(concepts) > MAX_CONCEPT_ENTITIES:
+            kept: list[KGEntity] = []
+            concept_kept = 0
+            for x in entities:
+                if x.type != "Concept":
+                    kept.append(x)
+                    continue
+                if concept_kept < MAX_CONCEPT_ENTITIES:
+                    kept.append(x)
+                    concept_kept += 1
+            entities = kept
+
+        # 중복 ID 제거 (첫 항목 우선)
+        seen_ids: set[str] = set()
+        deduped: list[KGEntity] = []
+        for ent in entities:
+            if ent.id in seen_ids:
+                continue
+            seen_ids.add(ent.id)
+            deduped.append(ent)
+        entities = deduped
 
         triples = [
             KGTriple(
@@ -227,6 +328,13 @@ class EntityExtractor:
             )
             for t in raw.get("triples", [])
             if t.get("head") and t.get("tail")
+        ]
+
+        # 저장될 엔티티 집합에 포함되는 트리플만 남긴다 (유령 노드 방지)
+        valid_entity_ids = {e.id for e in entities}
+        triples = [
+            tr for tr in triples
+            if tr.head in valid_entity_ids and tr.tail in valid_entity_ids
         ]
 
         print(f"[INFO] '{ctx.title}' 추출 완료: 엔티티 {len(entities)}개, 트리플 {len(triples)}개")

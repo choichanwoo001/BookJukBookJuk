@@ -383,7 +383,9 @@ class RippleNetScorer:
 
             # 방법 3: 임베딩 유사도 (벡터가 있을 때)
             if user_pref is not None:
-                cand_vec = self._get_vec(book_id) or self._get_vec(isbn)
+                cand_vec = self._get_vec(book_id)
+                if cand_vec is None:
+                    cand_vec = self._get_vec(isbn)
                 if cand_vec is not None:
                     cosine = float(np.dot(user_pref, cand_vec))
                     cosine = max(0.0, cosine)
