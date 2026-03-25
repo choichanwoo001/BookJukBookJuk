@@ -1,0 +1,233 @@
+.my-page {
+  min-height: 100%;
+  background: #fff;
+  padding-bottom: 100px;
+  max-width: 430px;
+  margin: 0 auto;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.my-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  background: #fff;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.my-header-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+}
+
+.my-header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #111;
+}
+
+.icon-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* ── Content ──────────────────────────────────────────────────────────── */
+.my-content {
+  padding: 24px 20px;
+}
+
+/* ── Profile Section ──────────────────────────────────────────────────── */
+.profile-section {
+  margin-bottom: 20px;
+}
+
+.profile-illustration {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 200px;
+  margin: 0 auto 20px;
+  background: #f9fafb;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.dog-illustration {
+  width: 70%;
+  height: 70%;
+  color: #111;
+}
+
+.profile-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.profile-avatar-wrap {
+  flex-shrink: 0;
+  padding: 3px;
+  background: linear-gradient(135deg, #fb923c 0%, #ec4899 100%);
+  border-radius: 50%;
+}
+
+.profile-avatar-btn {
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #fb923c 0%, #ec4899 100%);
+  transition: transform 0.2s ease;
+}
+
+.profile-avatar-btn:hover {
+  transform: scale(1.05);
+}
+
+.profile-avatar-btn:active {
+  transform: scale(0.98);
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #e5e7eb;
+  position: relative;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111;
+  margin-bottom: 6px;
+}
+
+.profile-stats {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.stats-divider {
+  margin: 0 8px;
+  color: #d1d5db;
+}
+
+.profile-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  background: #f3f4f6;
+  border-radius: 8px;
+}
+
+/* ── Activity Stats ────────────────────────────────────────────────────── */
+.activity-stats {
+  display: flex;
+  justify-content: space-around;
+  padding: 16px 0;
+  border-top: 1px solid #f3f4f6;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 20px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ── Taste Analysis Bar ───────────────────────────────────────────────── */
+.taste-analysis-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #dbeafe;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #111;
+  margin-bottom: 16px;
+}
+
+.taste-analysis-bar svg {
+  color: #6b7280;
+}
+
+/* ── Collection Box ───────────────────────────────────────────────────── */
+.collection-box {
+  width: 100%;
+  padding: 40px 20px;
+  border: 3px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #374151;
+  text-align: center;
+  background: #fff;
+  margin-bottom: 16px;
+}
+
+/* ── QR Link Bar ──────────────────────────────────────────────────────── */
+.qr-link-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #fef08a;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #111;
+}
+
+.qr-link-bar svg {
+  flex-shrink: 0;
+}

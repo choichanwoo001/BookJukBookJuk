@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/chanwoo/Documents/projects/BookJukBookJuk -type d -not -path */node_modules* -not -path */.git* -not -path */__pycache__*)",
+      "Bash(xargs grep:*)",
+      "Bash(find C:UserschanwooDocumentsprojectsBookJukBookJukai -type f \\\\\\(-name *.txt -o -name *.sqlite -o -name *seed* -o -name *test*data* \\\\\\))",
+      "Bash(python3 -m py_compile book_seeder/db.py)",
+      "Bash(python3 -m py_compile book_seeder/wiki_checker.py)",
+      "Bash(python3 -m py_compile book_seeder/korean_checker.py)",
+      "Bash(python3 -m py_compile book_seeder/orchestrator.py)",
+      "Bash(python3 -m py_compile book_seeder_main.py)",
+      "Bash(where py:*)",
+      "Bash(where python3.exe)",
+      "Bash(where python.exe)",
+      "Read(//c/Users/chanwoo/AppData/Local/Programs/**)",
+      "Read(//c/Users/chanwoo/miniconda3/**)",
+      "Read(//c/Users/chanwoo/**)"
+    ]
+  }
+}

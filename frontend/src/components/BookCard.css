@@ -1,0 +1,52 @@
+.book-card {
+  display: block;
+  flex-shrink: 0;
+  width: 100px;
+}
+
+.book-card.placeholder .book-cover {
+  cursor: default;
+}
+
+.book-cover {
+  width: 100px;
+  height: 140px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.book-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.book-cover.placeholder-cover {
+  background: #fce7f3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.book-cover.placeholder-cover span {
+  font-size: 12px;
+  color: #9d174d;
+  font-weight: 500;
+}
+
+.book-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+  margin-top: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-subtext {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}

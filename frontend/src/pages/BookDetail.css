@@ -1,0 +1,255 @@
+.book-detail-page {
+  min-height: 100%;
+  background: #fff;
+  padding-bottom: 88px;
+  max-width: 430px;
+  margin: 0 auto;
+}
+
+.book-detail-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: #fff;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.book-detail-header-spacer {
+  flex: 1;
+}
+
+.book-detail-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #111;
+}
+
+.book-detail-main {
+  padding: 16px 20px 0;
+}
+
+.book-detail-hero {
+  margin-bottom: 28px;
+}
+
+.book-detail-images {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.book-detail-img-cell {
+  aspect-ratio: 1;
+  min-height: 0;
+}
+
+.book-detail-img-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+}
+
+.book-detail-img-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.book-detail-character img {
+  object-fit: contain;
+  padding: 8px;
+  background: #fafafa;
+}
+
+.book-detail-character-btn {
+  cursor: pointer;
+  border: none;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.book-detail-character-btn:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.book-detail-character-btn:active {
+  transform: scale(0.98);
+}
+
+.book-detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.book-detail-title {
+  flex: 1;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+  line-height: 1.35;
+}
+
+.book-detail-share {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #374151;
+}
+
+.book-detail-rating-block {
+  margin-bottom: 20px;
+}
+
+.book-detail-avg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #374151;
+  margin-bottom: 10px;
+}
+
+.book-detail-avg-label {
+  font-weight: 500;
+}
+
+.book-detail-star-filled {
+  color: #fbbf24;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.book-detail-avg-value {
+  font-weight: 600;
+  color: #111;
+}
+
+.book-detail-stars-input {
+  display: flex;
+  gap: 6px;
+}
+
+.book-detail-star-btn {
+  font-size: 28px;
+  line-height: 1;
+  color: #d1d5db;
+  padding: 0 2px;
+  transition: color 0.15s ease;
+}
+
+.book-detail-star-btn.on {
+  color: #fbbf24;
+}
+
+.book-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.book-detail-action {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  padding: 8px 0;
+  border-bottom: 1px solid transparent;
+}
+
+.book-detail-action:active {
+  color: #111;
+}
+
+.book-detail-section {
+  margin-bottom: 28px;
+}
+
+.book-detail-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 12px;
+}
+
+.book-detail-info-box {
+  background: #f3f4f6;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.book-detail-dl {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.book-detail-dl-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 12px;
+  font-size: 14px;
+  align-items: baseline;
+}
+
+.book-detail-dl-row dt {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.book-detail-dl-row dd {
+  color: #111;
+  font-weight: 500;
+}
+
+.book-detail-comments {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.book-detail-comment {
+  background: #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.book-detail-comment-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.book-detail-comment-clickable:hover {
+  background: #d1d5db;
+}
+
+.book-detail-comment-clickable:active {
+  background: #9ca3af;
+}
+
+.book-detail-section-map .book-detail-section-title {
+  margin-bottom: 12px;
+}
+
+.book-detail-bottom-spacer {
+  height: 8px;
+}
