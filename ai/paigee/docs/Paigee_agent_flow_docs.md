@@ -58,7 +58,7 @@ flowchart TD
 |--------|------|-----------|-----------|
 | `state_change` | 사용자 서재 상태를 변경 | "이 책 읽는중으로 옮겨줘" | book_user_state upsert |
 | `book_qna_collect` | 책 질문 기반으로 생각/메모 수집 | "이 책 질문해줘" | conversation_events 저장 |
-| `review_assist` | 댓글/한줄평 문장 제안 | "코멘트 한 줄 추천해줘" | comment_suggestions 생성 |
+| `review_assist` | 댓글 작성 유도 + 대화 요약 포인트 제공 | "코멘트 뭘 써야 할지 모르겠어" | 대화 핵심 포인트/키워드 반환 |
 | `review_nudge` | 부담 없는 작성 촉구 | "뭐부터 쓰면 좋지?" | 타이밍 제안/질문 재진입 |
 | `book_recommend` | 맥락 기반 추천 | "오늘 가볍게 읽을 책 추천" | 추천 리스트 반환 |
 | `smalltalk` | 일상 대화 + 자연스러운 책 전환 | "오늘 좀 지쳤어" | 공감 응답 + 추천/질문 CTA |
@@ -83,14 +83,17 @@ flowchart TD
 
 ### 4.3 댓글 제안 플래그 규칙
 
-- Paige가 댓글(코멘트)을 제안한 순간에도 `shelf_state`는 바뀌지 않는다.
+- Paige는 댓글을 "대신 작성"하지 않고, 작성을 위한 포인트만 제안한다.
+- Paige가 댓글(코멘트) 작성을 유도한 순간에도 `shelf_state`는 바뀌지 않는다.
 - 대신 `book_user_states.comment_prompted_at`만 기록한다.
 - 따라서 "별점 후 미댓글"과 "댓글 제안을 받았지만 아직 미작성"은 둘 다 `RATED_ONLY`로 표현된다.
 
 ### 4.4 리뷰 이벤트 규칙
 
 - 별점은 완독 여부와 무관하게 언제든 등록 가능하다.
-- 댓글은 선택사항이며, 대화가 충분히 쌓였을 때 Paige가 제안한다.
+- 댓글은 선택사항이며, 아래 조건일 때 Paige가 작성을 권유한다.
+  - 같은 책 채팅방 메시지(유저+AI)가 5개 이상 누적
+  - 또는 해당 책에 별점이 등록됨(`RATED_ONLY`)
 - `RATED_ONLY`는 취향 분석에 바로 반영한다.
 
 ---
@@ -145,9 +148,9 @@ flowchart LR
 
 - 자동 생성은 "게시"가 아니라 "제안"까지만 수행한다.
 - 제안 타입:
-  - 한줄 코멘트 후보
-  - 2~3문장 댓글 골격
-  - 책별 채팅 히스토리 요약 기반 코멘트 후보
+  - 책별 채팅 히스토리 요약 포인트(무엇을 느꼈는지)
+  - 내가 남겼던 표현/키워드 리마인드
+  - 코멘트 작성 가이드(문장 틀) 제공
 - 모든 제안 응답에는 아래 CTA 중 1개 이상 포함:
   - `직접 코멘트 작성하기`
   - `다른 톤으로 다시 제안`
@@ -164,110 +167,22 @@ flowchart LR
   - 책이 지정된 대화는 해당 `book_chat_room`에 저장
   - 책 미지정 일반 대화는 `general_session`에 저장 후, 책 확정 시 연결
 - 리뷰(댓글) 제안 트리거:
-  - 동일 책 채팅 이벤트 N개 이상
+  - 동일 책 채팅 이벤트 5개 이상
   - 또는 별점은 등록했지만 댓글 미등록 상태
 ---
 
-## 8. 데이터 모델 (SQLite v2)
+## 8. 데이터 모델 (DB v2.1)
 
-### 7.1 Mermaid
+최신 DB 스키마는 별도 문서로 분리했습니다.
 
-```mermaid
-erDiagram
-    users ||--o{ book_user_states : has
-    users ||--o{ ratings : gives
-    users ||--o{ comments : writes
-    users ||--o{ comment_suggestions : owns
-    books ||--o{ ratings : has
-    books ||--o{ comments : has
-    books ||--o{ comment_suggestions : has
-    users ||--o{ conversation_sessions : has
-    books ||--o{ book_user_states : has
-    conversation_sessions ||--o{ conversation_events : has
+- 문서: `ai/paigee/docs/Paigee_database_schema.md`
+- 기준: 앱 운영 DB(사용자/서재/리뷰/대화/추천) + AI 캐시/벡터 저장 테이블
 
-    users {
-        text id PK
-        text nickname
-        json preference_tags
-        datetime created_at
-    }
-
-    books {
-        text id PK
-        text isbn
-        text title
-        text author
-        text genre
-        datetime pub_date
-    }
-
-    book_user_states {
-        text id PK
-        text user_id FK
-        text book_id FK
-        text shelf_state
-        text reading_proof
-        datetime comment_prompted_at
-        json context_tags
-        datetime updated_at
-    }
-
-    ratings {
-        text id PK
-        text user_id FK
-        text book_id FK
-        real score
-        datetime created_at
-    }
-
-    comments {
-        text id PK
-        text user_id FK
-        text book_id FK
-        text content
-        datetime created_at
-    }
-
-    comment_suggestions {
-        text id PK
-        text user_id FK
-        text book_id FK
-        text suggestion_type
-        text suggestion_text
-        json source_event_ids
-        datetime created_at
-    }
-
-    conversation_sessions {
-        text id PK
-        text user_id FK
-        text source_channel
-        text room_type
-        text book_id
-        datetime started_at
-    }
-
-    conversation_events {
-        text id PK
-        text session_id FK
-        text role
-        text intent
-        text message
-        datetime created_at
-    }
-```
-
-### 7.2 ASCII
-
-```
-users
-  ├── book_user_states (user_id FK) ── book_id → books
-  ├── ratings (user_id FK) ─────────── book_id → books
-  ├── comments (user_id FK) ────────── book_id → books
-  ├── comment_suggestions (user_id FK) ─ book_id → books
-  └── conversation_sessions (user_id FK)
-          └── conversation_events (session_id FK)
-```
+핵심 반영 사항:
+- `book_user_states` 상태 모델(`LIST`, `READING`, `RATED_ONLY`, `REVIEW_POSTED`) 유지
+- 대화 저장이 `conversation_rooms` / `conversation_messages` 개념으로 명확화
+- `book_api_cache`, `book_vectors` 등 AI 파이프라인 보조 테이블 추가
+- 커뮤니티 확장용 `collections`, `collection_books`, `review_likes` 포함
 
 ---
 
@@ -275,9 +190,9 @@ users
 
 | 트리거 | 조건 | score | 발화 예시 |
 |--------|------|-------|-----------|
-| 책 대화 충분 | `book_room_events >= 6` | 100 | "이 대화 내용으로 코멘트 한 줄 남겨볼까요?" |
-| 별점 후 미댓글(제안 대기) | `RATED_ONLY` + `comment_prompted_at` 존재 + 3일 | 80 | "별점 남긴 김에 코멘트도 같이 남겨볼까요?" |
-| 별점 후 미댓글(첫 제안 전) | `RATED_ONLY` + `comment_prompted_at` null + 3일 | 60 | "이 책에 한 줄 코멘트만 더 남기면 더 취향이 잘 잡혀요." |
+| 책 대화 충분 | `book_room_events >= 5` | 100 | "지금까지 나눈 얘기 바탕으로 코멘트 한번 남겨볼까요?" |
+| 별점 후 미댓글(제안 대기) | `RATED_ONLY` + `comment_prompted_at` 존재 | 80 | "별점 남긴 내용에 왜 그렇게 느꼈는지 한 줄만 더 남겨볼까요?" |
+| 별점 후 미댓글(첫 제안 전) | `RATED_ONLY` + `comment_prompted_at` null | 60 | "이 책에서 기억에 남은 포인트를 코멘트로 남겨볼까요?" |
 | 서점 맥락 후속 | 최근 `STORE_DISCOVERED` | 60 | "서점에서 봤던 그 책, 집에서 차분히 정리해볼까요?" |
 | 추천 타이밍 | 저녁/주말 + 선호장르 일치 | 40 | "오늘 컨디션에 맞는 짧은 책 2권 가져왔어요." |
 | 기본 인사 | 위 조건 없음 | 10 | "오늘은 어떤 책 이야기부터 해볼까요?" |
