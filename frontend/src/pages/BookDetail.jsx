@@ -3,16 +3,16 @@ import { useNavigate, useParams, Navigate, Link } from 'react-router-dom'
 import { getBookById } from '../data/dummyBooks'
 import StoreMap from '../components/StoreMap'
 import PopularComments from '../components/PopularComments'
+import { useTab } from '../hooks/useTab'
+import { CHARACTER_IMG } from '../data/constants'
 import './BookDetail.css'
-
-const CHARACTER_IMG = '/images/custom-character.png'
 
 function BookDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [userStars, setUserStars] = useState(0)
   const [showFullDesc, setShowFullDesc] = useState(false)
-  const [activeTab, setActiveTab] = useState('story')
+  const { activeTab, setActiveTab } = useTab('story')
 
   const book = useMemo(() => getBookById(id ?? ''), [id])
 

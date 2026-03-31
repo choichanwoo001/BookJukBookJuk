@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import BackButton from '../components/BackButton'
 import './TasteAnalysisDetail.css'
 
 const RATING_BARS = [44, 62, 34, 74, 82, 32, 22, 98, 66, 88]
@@ -13,21 +13,10 @@ const PREFER_GENRES = [
 ]
 
 function TasteAnalysisDetail() {
-  const navigate = useNavigate()
-
   return (
     <div className="taste-detail-page">
       <header className="taste-detail-header">
-        <button
-          type="button"
-          className="taste-detail-back-btn"
-          onClick={() => navigate(-1)}
-          aria-label="뒤로가기"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </button>
+        <BackButton className="taste-detail-back-btn" />
         <h1 className="taste-detail-title">취향분석</h1>
       </header>
 

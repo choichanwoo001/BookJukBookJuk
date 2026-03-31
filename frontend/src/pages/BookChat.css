@@ -80,12 +80,6 @@
   gap: 16px;
   min-height: 0;
   background: #fff;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.book-chat-messages::-webkit-scrollbar {
-  display: none;
 }
 
 .book-chat-welcome-character {

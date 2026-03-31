@@ -1,4 +1,5 @@
-import { useNavigate, useParams, Navigate } from 'react-router-dom'
+import { useParams, Navigate } from 'react-router-dom'
+import BackButton from '../components/BackButton'
 import { useState } from 'react'
 import { getCommentById } from '../data/dummyBooks'
 import { pickImageBySeed } from '../data/imagePool'
@@ -8,7 +9,6 @@ const PROFILE_PLACEHOLDER = pickImageBySeed(103)
 
 function CommentDetail() {
   const { id, commentId } = useParams()
-  const navigate = useNavigate()
   const [replyInput, setReplyInput] = useState('')
 
   const data = getCommentById(id ?? '', commentId ?? '')
@@ -19,22 +19,11 @@ function CommentDetail() {
 
   const { book, comment } = data
 
-  const handleBack = () => navigate(-1)
-
   return (
     <div className="comment-detail-page">
       <header className="comment-detail-header">
         <div className="comment-detail-header-left">
-          <button
-            type="button"
-            className="comment-detail-back"
-            onClick={handleBack}
-            aria-label="뒤로"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-          </button>
+          <BackButton className="comment-detail-back" label="뒤로" />
           <h1 className="comment-detail-header-title">코멘트</h1>
         </div>
         <button

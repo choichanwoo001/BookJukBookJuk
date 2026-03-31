@@ -11,10 +11,11 @@ The core design document is `ai/paigee/docs/Paigee_agent_flow_docs.md` — read 
 ## Rules
 
 - **Never read `.env` files.** If `.env` values need to be set, describe what value to use and let the user update the file directly.
+- **Frontend styling:** Never hardcode text sizes or palette colors. Use CSS custom properties from `frontend/src/styles/tokens.css`. Palette: `#92C7CF`, `#AAD7D9`, `#FBF9F1`, `#E5E1DA`. Use semantic variables like `var(--color-text-primary)`, `var(--color-brand-primary)`, `var(--font-size-base)`, and utility classes (`.text-title`, `.text-body`, `.text-caption`, `.text-muted`). If a new token is needed, add it to `tokens.css` first.
 
 ## Commands
 
-### Frontend (React + Vite)
+### Frontend (React 18 + Vite)
 ```bash
 cd frontend
 npm install
@@ -22,6 +23,8 @@ npm run dev       # Dev server at http://localhost:3000
 npm run build     # Output to dist/
 npm run preview   # Preview production build
 ```
+
+No linter, formatter, or test runner is configured for the frontend.
 
 ### Backend AI (Python)
 ```bash
@@ -43,6 +46,8 @@ python hybrid_recommender_main.py --interactive
 python hybrid_recommender_main.py --load-dir ./saved_pipeline
 ```
 
+No test suite or linter is configured for the AI modules.
+
 ### Required Environment Variables (see `ai/.env.example`)
 - `OPENAI_API_KEY` — Required by all AI modules
 - `LIBRARY_API_KEY` — 정보나루 Korean Library API (taste analysis, recommender)
@@ -52,11 +57,15 @@ python hybrid_recommender_main.py --load-dir ./saved_pipeline
 
 ## Architecture
 
+### Integration Status
+
+Frontend and AI backend are **not yet connected**. The frontend uses hardcoded mock data (`frontend/src/data/dummyBooks.js`); chat pages return regex-matched stub responses. The AI modules are standalone CLI tools with no HTTP server. Connecting them will require an API server layer (e.g., FastAPI) and wiring the React pages to real endpoints.
+
 ### Frontend (`frontend/src/`)
-React SPA with React Router. Pages: Home, Library, MyPage, BookDetail, BookChat, Search, Login. `MyChat.jsx` is the Paige chatbot on MyPage; `BookChat.jsx` is the book-specific Q&A page. Uses Leaflet for bookstore maps.
+React SPA with React Router v6 (`App.jsx` defines all routes). State management via React hooks only (no Redux/Context). Pages: Home, Library, MyPage, BookDetail, BookChat, Search, Login, CollectionDetail, TasteAnalysisDetail, CommentDetail. `MyChat.jsx` is the Paige chatbot on MyPage; `BookChat.jsx` is the book-specific Q&A page. Uses Leaflet (`react-leaflet`) for bookstore maps.
 
 ### AI Backend (`ai/`)
-Three independent Python modules, each runnable standalone:
+Three independent Python modules, each runnable standalone. Core deps: OpenAI (gpt-4o-mini / gpt-4o), LangChain, PyTorch (RippleNet GNN), scikit-learn, NetworkX.
 
 1. **Taste Analysis** (`taste_analysis/`, entry: `main.py`) — Fetches books from 정보나루, embeds keywords via OpenAI, clusters with K-means or DBSCAN, then generates an LLM prose analysis of reading preferences.
 

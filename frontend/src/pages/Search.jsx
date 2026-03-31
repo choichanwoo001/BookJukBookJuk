@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useTab } from '../hooks/useTab'
 import { SECTIONS, enrichBookDetail } from '../data/dummyBooks'
 import './Search.css'
 
@@ -16,7 +17,7 @@ const ALL_BOOKS = SECTIONS.flatMap((s) => s.books).map((b) => enrichBookDetail(b
 function Search() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
-  const [activeTab, setActiveTab] = useState('book')
+  const { activeTab, setActiveTab } = useTab('book')
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()

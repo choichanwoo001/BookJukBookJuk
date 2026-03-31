@@ -82,3 +82,37 @@
   line-height: var(--line-height-normal);
   color: var(--color-text-muted);
 }
+
+/* ── Rating ── */
+:root {
+  --color-rating-star: #f5c518;
+}
+
+/* ── Layout utilities ── */
+.page-container {
+  min-height: 100%;
+  background: #fff;
+  max-width: 430px;
+  margin: 0 auto;
+  padding-bottom: 80px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  border-bottom: 1px solid #f3f4f6;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 10;
+}
+
+/* ── Scrollbar ── */
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

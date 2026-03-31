@@ -1,11 +1,11 @@
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
 import BookCard from '../components/BookCard'
 import PopularComments from '../components/PopularComments'
+import BackButton from '../components/BackButton'
 import { SECTIONS } from '../data/dummyBooks'
 import './CollectionDetail.css'
 
 function CollectionDetail() {
-  const navigate = useNavigate()
   const { sectionId } = useParams()
   const section = SECTIONS.find((item) => item.id === sectionId)
   const likeCount = 600 + section.books.length * 17
@@ -20,16 +20,7 @@ function CollectionDetail() {
   return (
     <div className="collection-detail-page">
       <header className="collection-detail-header">
-        <button
-          type="button"
-          className="collection-detail-back-btn"
-          onClick={() => navigate(-1)}
-          aria-label="뒤로가기"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </button>
+        <BackButton className="collection-detail-back-btn" />
         <h1 className="collection-detail-title">{section.title}</h1>
       </header>
 

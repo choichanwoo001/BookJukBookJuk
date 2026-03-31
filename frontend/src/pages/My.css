@@ -321,9 +321,6 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.my-collection-list::-webkit-scrollbar {
-  display: none;
-}
 
 .my-collection-card {
   flex: 0 0 150px;

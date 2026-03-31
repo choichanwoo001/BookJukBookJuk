@@ -1,23 +1,6 @@
 import { useState, useCallback } from 'react'
+import StarDisplay from './StarDisplay'
 import './PopularComments.css'
-
-function StarDisplay({ rating }) {
-  const full = Math.floor(rating)
-  const half = rating - full >= 0.25 && rating - full < 0.75
-  const stars = [1, 2, 3, 4, 5].map((n) => {
-    if (n <= full) return 'full'
-    if (n === full + 1 && half) return 'half'
-    return 'empty'
-  })
-
-  return (
-    <span className="pc-star-display" aria-label={`${rating}점`}>
-      {stars.map((type, i) => (
-        <span key={i} className={`pc-star pc-star-${type}`}>★</span>
-      ))}
-    </span>
-  )
-}
 
 function RatingChart({ comments }) {
   const counts = [5, 4, 3, 2, 1].map((star) =>

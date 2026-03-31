@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useTab } from '../hooks/useTab'
+import BackButton from '../components/BackButton'
 import { APP_IMAGES } from '../data/imagePool'
 import BookCard from '../components/BookCard'
 import './Library.css'
@@ -52,22 +52,13 @@ const LIBRARY_BOOKS = {
 }
 
 function Library() {
-  const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('rated')
+  const { activeTab, setActiveTab } = useTab('rated')
   const activeBooks = LIBRARY_BOOKS[activeTab] ?? []
 
   return (
     <div className="library-page">
       <header className="library-header">
-        <button
-          className="back-btn"
-          onClick={() => navigate(-1)}
-          aria-label="뒤로가기"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </button>
+        <BackButton />
         <h1 className="library-title">책 보관함</h1>
       </header>
 
