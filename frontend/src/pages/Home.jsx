@@ -9,7 +9,7 @@ function Home() {
   return (
     <div className="home-page">
       <header className="home-header">
-        <h1 className="header-logo">책국책국</h1>
+        <h1 className="header-logo">Verso</h1>
         <button
           className="search-btn"
           onClick={() => navigate('/search')}

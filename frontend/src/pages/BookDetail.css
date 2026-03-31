@@ -115,6 +115,9 @@
 
 .book-detail-rating-block {
   margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .book-detail-avg {
@@ -144,6 +147,7 @@
 .book-detail-stars-input {
   display: flex;
   gap: 6px;
+  justify-content: center;
 }
 
 .book-detail-star-btn {
@@ -162,6 +166,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
+  justify-content: center;
 }
 
 .book-detail-action {
@@ -180,6 +185,13 @@
   margin-bottom: 28px;
 }
 
+/* ── 구분선 ── */
+.book-detail-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 0 0 28px 0;
+}
+
 .book-detail-section-title {
   font-size: 16px;
   font-weight: 700;
@@ -187,35 +199,136 @@
   margin-bottom: 12px;
 }
 
-.book-detail-info-box {
-  background: #f3f4f6;
-  border-radius: 12px;
-  padding: 16px;
+
+/* ── 탭 ── */
+.book-detail-tabs {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 0;
 }
 
-.book-detail-dl {
+.book-detail-tab {
+  flex: 1;
+  padding: 0.75rem 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #9ca3af;
+  text-align: center;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.book-detail-tab.active {
+  color: #111;
+  border-bottom-color: #111;
+  font-weight: 700;
+}
+
+.book-detail-tab-content {
+  padding-top: 1.25rem;
+}
+
+/* ── 줄거리 ── */
+.book-detail-desc {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.book-detail-desc-text {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: #374151;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-detail-desc.expanded .book-detail-desc-text {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.book-detail-more-btn {
+  display: block;
+  margin-left: auto;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* ── 기본정보 그리드 ── */
+.book-detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.book-detail-info-item {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0.25rem;
 }
 
-.book-detail-dl-row {
-  display: grid;
-  grid-template-columns: 88px 1fr;
-  gap: 12px;
-  font-size: 14px;
-  align-items: baseline;
-}
-
-.book-detail-dl-row dt {
-  color: #6b7280;
+.book-detail-info-label {
+  font-size: 0.75rem;
+  color: #9ca3af;
   font-weight: 500;
 }
 
-.book-detail-dl-row dd {
+.book-detail-info-value {
+  font-size: 0.875rem;
   color: #111;
-  font-weight: 500;
+  font-weight: 600;
 }
+
+/* ── 저자 정보 ── */
+.book-detail-author-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.book-detail-author-avatar {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #374151;
+  flex-shrink: 0;
+}
+
+.book-detail-author-name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.book-detail-author-label {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 0.125rem;
+}
+
+.book-detail-author-bio {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: #374151;
+}
+
 
 .book-detail-comments {
   list-style: none;
@@ -251,5 +364,271 @@
 }
 
 .book-detail-bottom-spacer {
-  height: 8px;
+  height: 0.5rem;
+}
+
+/* ============================================================
+   인기 코멘트 (PopularComments)
+   ============================================================ */
+.pc-wrap {
+  padding: 0;
+}
+
+/* 헤더 */
+.pc-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 1rem;
+}
+
+.pc-count {
+  font-weight: 700;
+  color: #111;
+}
+
+/* 평균별점 + 차트 영역 */
+.pc-summary {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.pc-avg-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.pc-avg-num {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #111;
+  line-height: 1;
+}
+
+.pc-avg-sub {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+}
+
+/* 막대 차트 */
+.pc-chart {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.pc-chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  height: 3.75rem;
+}
+
+.pc-chart-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.pc-chart-bar {
+  width: 100%;
+  background: #f5c518;
+  border-radius: 0.125rem 0.125rem 0 0;
+  min-height: 2px;
+  transition: height 0.3s ease;
+}
+
+.pc-chart-labels {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.pc-chart-label {
+  flex: 1;
+  text-align: center;
+  font-size: 0.625rem;
+  color: #9ca3af;
+}
+
+/* 구분선 */
+.pc-divider {
+  height: 1px;
+  background: #f3f4f6;
+  margin-bottom: 0;
+}
+
+/* 코멘트 목록 */
+.pc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pc-comment-item {
+  padding: 1.125rem 0;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pc-comment-item:last-child {
+  border-bottom: none;
+}
+
+/* 상단: 별점 + 유저 */
+.pc-comment-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 반별점 */
+.pc-star-display {
+  display: flex;
+  gap: 0.0625rem;
+}
+
+.pc-star {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.pc-star-full {
+  color: #f5c518;
+}
+
+.pc-star-half {
+  /* 반별은 clip으로 구현 */
+  position: relative;
+  color: #e5e7eb;
+}
+
+.pc-star-half::before {
+  content: '★';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 50%;
+  overflow: hidden;
+  color: #f5c518;
+}
+
+.pc-star-empty {
+  color: #e5e7eb;
+}
+
+/* 유저 영역 */
+.pc-user-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.pc-w-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: #fff;
+  background: #111;
+  border-radius: 50%;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+}
+
+.pc-username {
+  font-size: 0.8125rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.pc-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #d1d5db;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 본문 */
+.pc-comment-text {
+  font-size: 0.9375rem;
+  color: #111;
+  line-height: 1.6;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.pc-comment-text.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+
+.pc-more-text-btn {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+/* 푸터 */
+.pc-comment-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.pc-footer-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pc-footer-btn svg {
+  flex-shrink: 0;
+}
+
+.pc-footer-menu {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 0;
+  display: flex;
+  align-items: center;
 }

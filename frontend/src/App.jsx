@@ -9,6 +9,7 @@ import BookDetail from './pages/BookDetail'
 import CommentDetail from './pages/CommentDetail'
 import BookChat from './pages/BookChat'
 import MyChat from './pages/MyChat'
+import SectionBooks from './pages/SectionBooks'
 import './App.css'
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
           <Route path="/library" element={<Library />} />
           <Route path="/my" element={<My />} />
           <Route path="/my/chat" element={<MyChat />} />
+          <Route path="/section/:sectionId" element={<SectionBooks />} />
         </Route>
         <Route path="/search" element={<Search />} />
         <Route path="*" element={<Navigate to="/" replace />} />
