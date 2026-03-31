@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getBookById } from '../data/dummyBooks'
-import { pickImageBySeed } from '../data/imagePool'
 import { Navigate } from 'react-router-dom'
 import './BookChat.css'
 
-const CHARACTER_IMG = pickImageBySeed(101)
+const CHARACTER_IMG = '/images/custom-character.png'
 
 /** 책 정보를 바탕으로 캐릭터의 목업 응답을 생성합니다. */
 function getMockResponse(book, userMessage) {
@@ -98,17 +97,15 @@ function BookChat() {
         <span className="book-chat-header-spacer" />
       </header>
 
-      <div className="book-chat-messages" ref={scrollRef}>
-        {messages.length === 0 && (
-          <div className="book-chat-welcome">
-            <div className="book-chat-welcome-character">
-              <img src={CHARACTER_IMG} alt="캐릭터" />
-            </div>
-            <p className="book-chat-welcome-text">안녕하세요! 저는 이 책의 친구예요.</p>
-            <p className="book-chat-welcome-sub">{book.title}에 대해 궁금한 점을 물어보세요.</p>
-          </div>
-        )}
+      <section className="book-chat-character-panel" aria-label="캐릭터 안내">
+        <div className="book-chat-welcome-character">
+          <img src={CHARACTER_IMG} alt="캐릭터" />
+        </div>
+        <p className="book-chat-welcome-text">안녕하세요! 저는 이 책의 친구예요.</p>
+        <p className="book-chat-welcome-sub">{book.title}에 대해 궁금한 점을 물어보세요.</p>
+      </section>
 
+      <div className="book-chat-messages" ref={scrollRef}>
         {messages.map((msg, i) => (
           <div
             key={i}
@@ -124,6 +121,10 @@ function BookChat() {
             </div>
           </div>
         ))}
+
+        {messages.length === 0 && (
+          <p className="book-chat-empty-hint">메시지를 입력하면 대화가 시작돼요.</p>
+        )}
 
         {isLoading && (
           <div className="book-chat-bubble-wrap assistant">

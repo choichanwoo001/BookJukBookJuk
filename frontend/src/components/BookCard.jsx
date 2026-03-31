@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import './BookCard.css'
 
-function BookCard({ book, isPlaceholder }) {
+function BookCard({ book, isPlaceholder, variant = 'default', to, showRating = true }) {
   if (isPlaceholder) {
     return (
       <div className="book-card placeholder">
@@ -12,13 +12,33 @@ function BookCard({ book, isPlaceholder }) {
     )
   }
 
-  return (
-    <Link to={`/book/${book.id}`} className="book-card">
+  const defaultTo = Number.isFinite(Number(book?.id)) ? `/book/${book.id}` : null
+  const cardTo = to === undefined ? defaultTo : to
+  const cardClassName = `book-card ${variant === 'grid' ? 'book-card-grid' : ''}`.trim()
+
+  const content = (
+    <>
       <div className="book-cover">
         <img src={book.image} alt={book.title} />
       </div>
       <h3 className="book-title">{book.title}</h3>
-      <p className="book-subtext">평점 {book.rating}</p>
+      {showRating && typeof book.rating === 'number' && (
+        <p className="book-subtext">평점 {book.rating}</p>
+      )}
+    </>
+  )
+
+  if (!cardTo) {
+    return (
+      <div className={cardClassName}>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <Link to={cardTo} className={cardClassName}>
+      {content}
     </Link>
   )
 }

@@ -48,7 +48,7 @@
 }
 
 .book-detail-img-cell {
-  aspect-ratio: 1;
+  aspect-ratio: 2 / 3;
   min-height: 0;
 }
 
@@ -64,27 +64,42 @@
 .book-detail-img-frame img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #fff;
 }
 
 .book-detail-character img {
   object-fit: contain;
-  padding: 8px;
-  background: #fafafa;
+  width: 74%;
+  height: auto;
+  padding: 0;
+  background: transparent;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.14));
 }
 
 .book-detail-character-btn {
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
   border: none;
-  transition: box-shadow 0.2s ease, transform 0.15s ease;
+  overflow: visible;
+  transition: transform 0.15s ease;
 }
 
 .book-detail-character-btn:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
 }
 
 .book-detail-character-btn:active {
   transform: scale(0.98);
+}
+
+.book-detail-img-frame.book-detail-character {
+  background: transparent;
+  border: none;
+  overflow: visible;
 }
 
 .book-detail-title-row {

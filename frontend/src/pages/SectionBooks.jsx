@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { SECTIONS } from '../data/dummyBooks'
+import BookCard from '../components/BookCard'
 import './SectionBooks.css'
 
 function SectionBooks() {
@@ -37,19 +38,7 @@ function SectionBooks() {
       <main className="sb-content">
         <div className="sb-grid">
           {section.books.map((book) => (
-            <div
-              key={book.id}
-              className="sb-grid-item"
-              onClick={() => navigate(`/book/${book.id}`)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && navigate(`/book/${book.id}`)}
-            >
-              <div className="sb-book-cover">
-                <img src={book.image} alt={book.title} />
-              </div>
-              <span className="sb-book-title">{book.title}</span>
-            </div>
+            <BookCard key={book.id} book={book} variant="grid" />
           ))}
         </div>
       </main>

@@ -10,6 +10,8 @@ import CommentDetail from './pages/CommentDetail'
 import BookChat from './pages/BookChat'
 import MyChat from './pages/MyChat'
 import SectionBooks from './pages/SectionBooks'
+import CollectionDetail from './pages/CollectionDetail'
+import TasteAnalysisDetail from './pages/TasteAnalysisDetail'
 import './App.css'
 
 function App() {
@@ -25,7 +27,9 @@ function App() {
           <Route path="/library" element={<Library />} />
           <Route path="/my" element={<My />} />
           <Route path="/my/chat" element={<MyChat />} />
+          <Route path="/my/taste-analysis" element={<TasteAnalysisDetail />} />
           <Route path="/section/:sectionId" element={<SectionBooks />} />
+          <Route path="/collection/:sectionId" element={<CollectionDetail />} />
         </Route>
         <Route path="/search" element={<Search />} />
         <Route path="*" element={<Navigate to="/" replace />} />

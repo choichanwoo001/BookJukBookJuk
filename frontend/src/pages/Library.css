@@ -102,14 +102,11 @@
   gap: 16px 12px;
 }
 
-.library-grid-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+.library-grid .book-card {
+  width: 100%;
 }
 
-.library-book-cover {
+.library-grid .book-cover {
   width: 100%;
   aspect-ratio: 2 / 3;
   max-width: 110px;
@@ -118,24 +115,22 @@
   overflow: hidden;
 }
 
-.library-book-cover img {
+.library-grid .book-cover img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #fff;
   display: block;
 }
 
-.library-book-title {
-  display: inline-block;
-  padding: 6px 12px;
-  background: #f3f4f6;
-  border-radius: 8px;
+.library-grid .book-title {
   font-size: 13px;
-  font-weight: 500;
-  color: #6b7280;
-  max-width: 100%;
-  text-align: center;
+  margin-top: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.library-grid .book-subtext {
+  margin-top: 4px;
 }

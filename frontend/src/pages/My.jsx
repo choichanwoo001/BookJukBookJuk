@@ -1,26 +1,15 @@
 import { useNavigate } from 'react-router-dom'
 import { pickImageBySeed } from '../data/imagePool'
+import { SECTIONS } from '../data/dummyBooks'
 import './My.css'
-
-// 간단한 강아지 라인 일러스트 SVG
-function DogIllustration() {
-  return (
-    <svg viewBox="0 0 120 120" className="dog-illustration" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <ellipse cx="60" cy="70" rx="28" ry="30" />
-      <circle cx="60" cy="45" r="22" />
-      <ellipse cx="45" cy="42" rx="4" ry="5" fill="currentColor" />
-      <ellipse cx="75" cy="42" rx="4" ry="5" fill="currentColor" />
-      <path d="M55 55 Q60 60 65 55" strokeLinecap="round" />
-      <path d="M35 65 Q20 55 25 45" strokeLinecap="round" />
-      <path d="M85 65 Q100 55 95 45" strokeLinecap="round" />
-      <path d="M35 85 Q35 100 45 98" strokeLinecap="round" />
-      <path d="M85 85 Q85 100 75 98" strokeLinecap="round" />
-    </svg>
-  )
-}
 
 function My() {
   const navigate = useNavigate()
+  const collections = SECTIONS.map((section) => ({
+    id: section.id,
+    title: section.title,
+    books: section.books.slice(0, 4),
+  }))
 
   return (
     <div className="my-page">
@@ -49,9 +38,18 @@ function My() {
 
       <main className="my-content">
         <section className="profile-section">
-          <div className="profile-illustration">
-            <DogIllustration />
-          </div>
+          <button
+            type="button"
+            className="profile-illustration profile-illustration-btn"
+            onClick={() => navigate('/my/chat')}
+            aria-label="캐릭터와 대화하기"
+          >
+            <img
+              src="/images/custom-character.png"
+              alt="마이페이지 캐릭터"
+              className="character-illustration"
+            />
+          </button>
           <div className="profile-info">
             <button
               type="button"
@@ -93,28 +91,75 @@ function My() {
           </div>
         </div>
 
-        <button className="taste-analysis-bar">
-          <span>취향분석</span>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
+        <section className="taste-analysis-section" aria-label="취향분석">
+          <h2 className="taste-analysis-title">취향분석</h2>
+          <span className="taste-analysis-badge">#별점분포</span>
+          <p className="taste-analysis-summary">작품을 남들보다 진지하고 비판적으로 보는 '지성파'.</p>
 
-        <div className="collection-box">
-          <span>컬렉션</span>
-        </div>
+          <div className="taste-analysis-chart-wrap" aria-hidden="true">
+            <span className="taste-analysis-scale taste-analysis-scale-left">0.5</span>
+            <div className="taste-analysis-chart">
+              {[10, 12, 18, 34, 52, 48, 48, 42, 24, 14].map((height, index) => (
+                <div
+                  key={`taste-bar-${index}`}
+                  className={`taste-analysis-bar ${index === 4 ? 'active' : ''}`}
+                  style={{ height: `${height}px` }}
+                />
+              ))}
+            </div>
+            <span className="taste-analysis-scale taste-analysis-scale-right">5</span>
+            <span className="taste-analysis-highlight">2.5</span>
+          </div>
 
-        <button className="qr-link-bar">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="7" height="7" />
-            <rect x="14" y="3" width="7" height="7" />
-            <rect x="3" y="14" width="7" height="7" />
-            <rect x="14" y="14" width="3" height="3" />
-            <rect x="19" y="14" width="2" height="2" />
-          </svg>
-          <span>qr로 매장 기기와 연동하기</span>
-        </button>
+          <button
+            type="button"
+            className="taste-analysis-more-btn"
+            onClick={() => navigate('/my/taste-analysis')}
+          >
+            <span>모든 분석 보기</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </section>
+
+        <section className="my-collection-section" aria-label="내 컬랙션">
+          <h2 className="my-collection-title">내 컬랙션</h2>
+          <div className="my-collection-list" role="list">
+            {collections.map((collection) => (
+              <button
+                key={collection.id}
+                type="button"
+                className="my-collection-card"
+                role="listitem"
+                onClick={() => navigate(`/collection/${collection.id}`)}
+                aria-label={`${collection.title} 컬렉션 보기`}
+              >
+                <div className="my-collection-grid">
+                  {collection.books.map((book) => (
+                    <div key={book.id} className="my-collection-cover">
+                      <img src={book.image} alt={book.title} />
+                    </div>
+                  ))}
+                </div>
+                <p className="my-collection-name">{collection.title}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
       </main>
+
+      <button className="qr-link-bar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+          <rect x="14" y="14" width="3" height="3" />
+          <rect x="19" y="14" width="2" height="2" />
+        </svg>
+        <span>qr로 매장 기기와 연동하기</span>
+      </button>
     </div>
   )
 }

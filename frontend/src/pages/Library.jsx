@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { APP_IMAGES } from '../data/imagePool'
+import BookCard from '../components/BookCard'
 import './Library.css'
 
 const TABS = [
@@ -14,6 +15,7 @@ const makeLibraryBooks = (tab, titles) => (
   titles.map((title, i) => ({
     id: `${tab}-${i + 1}`,
     title,
+    rating: Number((4.2 + (i % 4) * 0.2).toFixed(1)),
     image: APP_IMAGES[i % APP_IMAGES.length],
   }))
 )
@@ -87,12 +89,7 @@ function Library() {
       <main className="library-content">
         <div className="library-grid">
           {activeBooks.map((item) => (
-            <div key={item.id} className="library-grid-item">
-              <div className="library-book-cover">
-                <img src={item.image} alt={item.title} />
-              </div>
-              <span className="library-book-title">{item.title}</span>
-            </div>
+            <BookCard key={item.id} book={item} variant="grid" />
           ))}
         </div>
       </main>
