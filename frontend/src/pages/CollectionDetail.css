@@ -1,0 +1,141 @@
+.collection-detail-page {
+  min-height: 100%;
+  background: #fff;
+  max-width: 430px;
+  margin: 0 auto;
+  padding-bottom: 80px;
+}
+
+.collection-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  padding-top: max(14px, env(safe-area-inset-top));
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.collection-detail-back-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #111;
+}
+
+.collection-detail-back-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.collection-detail-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #111;
+  margin: 0;
+}
+
+.collection-detail-content {
+  padding: 16px;
+}
+
+.collection-detail-description {
+  margin-bottom: 14px;
+}
+
+.collection-detail-section-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+}
+
+.collection-detail-section-title span {
+  font-size: 20px;
+  font-weight: 600;
+  color: #9ca3af;
+  margin-left: 4px;
+}
+
+.collection-detail-description-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #6b7280;
+}
+
+.collection-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #f3f4f6;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 14px;
+}
+
+.collection-detail-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  color: #ef4f7a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.collection-detail-meta-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.collection-detail-like-count {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.collection-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 10px;
+}
+
+.collection-detail-grid .book-card {
+  width: 100%;
+}
+
+.collection-detail-grid .book-cover {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  max-width: none;
+  border-radius: 8px;
+  background: #f3f4f6;
+}
+
+.collection-detail-grid .book-cover img {
+  object-fit: contain;
+  background: #fff;
+}
+
+.collection-detail-grid .book-title {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-detail-grid .book-subtext {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.collection-detail-comments-wrap {
+  margin-top: 18px;
+}

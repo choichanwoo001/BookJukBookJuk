@@ -1,173 +1,18 @@
-import { useMemo, useState, useCallback } from 'react'
-import { useNavigate, useParams, Navigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { useNavigate, useParams, Navigate, Link } from 'react-router-dom'
 import { getBookById } from '../data/dummyBooks'
-import { pickImageBySeed } from '../data/imagePool'
 import StoreMap from '../components/StoreMap'
+import PopularComments from '../components/PopularComments'
+import { useTab } from '../hooks/useTab'
+import { CHARACTER_IMG } from '../data/constants'
 import './BookDetail.css'
-
-const CHARACTER_IMG = pickImageBySeed(102)
-
-/* ---------- 반별점 렌더링 ---------- */
-function StarDisplay({ rating }) {
-  const full = Math.floor(rating)
-  const half = rating - full >= 0.25 && rating - full < 0.75
-  const stars = [1, 2, 3, 4, 5].map((n) => {
-    if (n <= full) return 'full'
-    if (n === full + 1 && half) return 'half'
-    return 'empty'
-  })
-  return (
-    <span className="pc-star-display" aria-label={`${rating}점`}>
-      {stars.map((type, i) => (
-        <span key={i} className={`pc-star pc-star-${type}`}>★</span>
-      ))}
-    </span>
-  )
-}
-
-/* ---------- 별점 분포 차트 ---------- */
-function RatingChart({ comments }) {
-  const counts = [5, 4, 3, 2, 1].map((star) =>
-    comments.filter((c) => Math.round(c.rating) === star).length
-  )
-  const maxCount = Math.max(...counts, 1)
-  const labels = ['1.0', '2.0', '3.0', '4.0', '5.0']
-  const orderedCounts = [...counts].reverse() // 1→5 순으로 표시
-  return (
-    <div className="pc-chart">
-      <div className="pc-chart-bars">
-        {orderedCounts.map((count, i) => (
-          <div key={i} className="pc-chart-bar-wrap">
-            <div
-              className="pc-chart-bar"
-              style={{ height: `${Math.round((count / maxCount) * 100)}%` }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="pc-chart-labels">
-        {labels.map((l) => (
-          <span key={l} className="pc-chart-label">{l}</span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ---------- 인기 코멘트 섹션 ---------- */
-function PopularComments({ comments, avgRating, onCommentClick }) {
-  const [expandedIdx, setExpandedIdx] = useState(null)
-  const total = comments.length
-  const avg = typeof avgRating === 'number' ? avgRating.toFixed(1) : String(avgRating)
-
-  const toggleExpand = useCallback((e, i) => {
-    e.stopPropagation()
-    setExpandedIdx((prev) => (prev === i ? null : i))
-  }, [])
-
-  return (
-    <div className="pc-wrap">
-      {/* 헤더 */}
-      <h2 className="pc-title">코멘트 <span className="pc-count">{total}</span></h2>
-
-      {/* 평균별점 + 차트 */}
-      <div className="pc-summary">
-        <div className="pc-avg-block">
-          <span className="pc-avg-num">{avg}</span>
-          <span className="pc-avg-sub">({total}명)</span>
-        </div>
-        <RatingChart comments={comments} />
-      </div>
-
-      <div className="pc-divider" />
-
-      {/* 코멘트 목록 */}
-      <ul className="pc-list">
-        {comments.map((comment, i) => {
-          const text = typeof comment === 'string' ? comment : comment.text
-          const rating = typeof comment === 'string' ? 4 : comment.rating
-          const likeCount = comment.likeCount ?? 0
-          const replyCount = comment.replyCount ?? 0
-          const userName = comment.userName ?? '독자'
-          const hasBadge = comment.hasBadge ?? false
-          const isExpanded = expandedIdx === i
-          const isLong = text.length > 80
-
-          return (
-            <li
-              key={i}
-              className="pc-comment-item"
-              role="button"
-              tabIndex={0}
-              onClick={() => onCommentClick(i)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onCommentClick(i)
-                }
-              }}
-            >
-              {/* 상단: 별점 + 유저 */}
-              <div className="pc-comment-top">
-                <StarDisplay rating={rating} />
-                <div className="pc-user-row">
-                  <span className="pc-username">{userName}</span>
-                  <div className="pc-avatar">{userName.charAt(0)}</div>
-                </div>
-              </div>
-
-              {/* 본문 */}
-              <p className={`pc-comment-text ${isExpanded || !isLong ? 'expanded' : ''}`}>
-                {text}
-                {isLong && !isExpanded && (
-                  <span className="pc-text-fade" />
-                )}
-              </p>
-              {isLong && !isExpanded && (
-                <button
-                  type="button"
-                  className="pc-more-text-btn"
-                  onClick={(e) => toggleExpand(e, i)}
-                >
-                  더보기
-                </button>
-              )}
-
-              {/* 하단: 좋아요 / 댓글 / 메뉴 */}
-              <div className="pc-comment-footer">
-                <button type="button" className="pc-footer-btn" onClick={(e) => e.stopPropagation()}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z" />
-                    <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-                  </svg>
-                  <span>{likeCount}</span>
-                </button>
-                <button type="button" className="pc-footer-btn" onClick={(e) => e.stopPropagation()}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                  <span>{replyCount}</span>
-                </button>
-                <button type="button" className="pc-footer-menu" onClick={(e) => e.stopPropagation()} aria-label="더보기">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />
-                  </svg>
-                </button>
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
-}
 
 function BookDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [userStars, setUserStars] = useState(0)
   const [showFullDesc, setShowFullDesc] = useState(false)
-  const [activeTab, setActiveTab] = useState('story')
+  const { activeTab, setActiveTab } = useTab('story')
 
   const book = useMemo(() => getBookById(id ?? ''), [id])
 
@@ -216,14 +61,13 @@ function BookDetail() {
               </div>
             </div>
             <div className="book-detail-img-cell">
-              <button
-                type="button"
+              <Link
+                to={`/book/${book.id}/chat`}
                 className="book-detail-img-frame book-detail-character book-detail-character-btn"
-                onClick={() => navigate(`/book/${book.id}/chat`)}
                 aria-label="캐릭터와 상세 토크하기"
               >
                 <img src={CHARACTER_IMG} alt="캐릭터" />
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -340,7 +184,6 @@ function BookDetail() {
           <PopularComments
             comments={book.popularComments}
             avgRating={book.rating}
-            bookId={id}
             onCommentClick={(i) => navigate(`/book/${id}/comment/${i}`)}
           />
         </section>

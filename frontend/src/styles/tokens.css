@@ -1,0 +1,118 @@
+:root {
+  /* App palette (source of truth) */
+  --palette-cyan-main: #92c7cf;
+  --palette-cyan-soft: #aad7d9;
+  --palette-cream: #fbf9f1;
+  --palette-warm-gray: #e5e1da;
+
+  /* Semantic colors (use these in components) */
+  --color-brand-primary: var(--palette-cyan-main);
+  --color-brand-soft: var(--palette-cyan-soft);
+  --color-bg-base: var(--palette-cream);
+  --color-bg-surface: var(--palette-warm-gray);
+  --color-border-soft: var(--palette-warm-gray);
+  --color-border-strong: #cdc7bd;
+
+  /* Text colors tuned to the palette hue */
+  --color-text-primary: #2f4f55;
+  --color-text-secondary: #46656b;
+  --color-text-muted: #648287;
+  --color-text-subtle: #84a1a6;
+
+  /* Font sizes */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-base: 15px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 22px;
+
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.4;
+  --line-height-relaxed: 1.5;
+}
+
+/* Optional utility classes for quick usage in JSX */
+.text-primary {
+  color: var(--color-text-primary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-subtle {
+  color: var(--color-text-subtle);
+}
+
+.bg-base {
+  background-color: var(--color-bg-base);
+}
+
+.bg-surface {
+  background-color: var(--color-bg-surface);
+}
+
+.text-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+}
+
+.text-body {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-secondary);
+}
+
+.text-caption {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-muted);
+}
+
+/* ── Rating ── */
+:root {
+  --color-rating-star: #f5c518;
+}
+
+/* ── Layout utilities ── */
+.page-container {
+  min-height: 100%;
+  background: #fff;
+  max-width: 430px;
+  margin: 0 auto;
+  padding-bottom: 80px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  border-bottom: 1px solid #f3f4f6;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 10;
+}
+
+/* ── Scrollbar ── */
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { getBookById } from '../data/dummyBooks'
-import { pickImageBySeed } from '../data/imagePool'
 import { Navigate } from 'react-router-dom'
+import { CHARACTER_IMG } from '../data/constants'
+import BackButton from '../components/BackButton'
+import { useChat } from '../hooks/useChat'
 import './BookChat.css'
-
-const CHARACTER_IMG = pickImageBySeed(101)
 
 /** 책 정보를 바탕으로 캐릭터의 목업 응답을 생성합니다. */
 function getMockResponse(book, userMessage) {
@@ -39,58 +38,18 @@ function getMockResponse(book, userMessage) {
 
 function BookChat() {
   const { id } = useParams()
-  const navigate = useNavigate()
-  const scrollRef = useRef(null)
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-
   const book = getBookById(id ?? '')
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages])
+  const { messages, input, setInput, isLoading, scrollRef, handleSend, handleKeyDown } =
+    useChat((text) => getMockResponse(book, text))
 
   if (!book) {
     return <Navigate to="/" replace />
   }
 
-  const handleSend = () => {
-    const text = input.trim()
-    if (!text || isLoading) return
-
-    const userMsg = { role: 'user', content: text }
-    setMessages((prev) => [...prev, userMsg])
-    setInput('')
-    setIsLoading(true)
-
-    setTimeout(() => {
-      const reply = getMockResponse(book, text)
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
-      setIsLoading(false)
-    }, 600 + Math.random() * 400)
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
-
   return (
     <div className="book-chat-page">
       <header className="book-chat-header">
-        <button
-          type="button"
-          className="book-chat-back"
-          onClick={() => navigate(`/book/${id}`)}
-          aria-label="뒤로"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </button>
+        <BackButton className="book-chat-back" to={`/book/${id}`} label="뒤로" />
         <div className="book-chat-header-title">
           <span className="book-chat-header-label">상세 토크</span>
           <span className="book-chat-header-book">{book.title}</span>
@@ -98,17 +57,15 @@ function BookChat() {
         <span className="book-chat-header-spacer" />
       </header>
 
-      <div className="book-chat-messages" ref={scrollRef}>
-        {messages.length === 0 && (
-          <div className="book-chat-welcome">
-            <div className="book-chat-welcome-character">
-              <img src={CHARACTER_IMG} alt="캐릭터" />
-            </div>
-            <p className="book-chat-welcome-text">안녕하세요! 저는 이 책의 친구예요.</p>
-            <p className="book-chat-welcome-sub">{book.title}에 대해 궁금한 점을 물어보세요.</p>
-          </div>
-        )}
+      <section className="book-chat-character-panel" aria-label="캐릭터 안내">
+        <div className="book-chat-welcome-character">
+          <img src={CHARACTER_IMG} alt="캐릭터" />
+        </div>
+        <p className="book-chat-welcome-text">안녕하세요! 저는 이 책의 친구예요.</p>
+        <p className="book-chat-welcome-sub">{book.title}에 대해 궁금한 점을 물어보세요.</p>
+      </section>
 
+      <div className="book-chat-messages" ref={scrollRef}>
         {messages.map((msg, i) => (
           <div
             key={i}
@@ -124,6 +81,10 @@ function BookChat() {
             </div>
           </div>
         ))}
+
+        {messages.length === 0 && (
+          <p className="book-chat-empty-hint">메시지를 입력하면 대화가 시작돼요.</p>
+        )}
 
         {isLoading && (
           <div className="book-chat-bubble-wrap assistant">
