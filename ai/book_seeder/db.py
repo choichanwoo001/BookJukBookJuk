@@ -5,6 +5,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Generator
 
 DB_PATH = os.path.join(
@@ -12,6 +13,9 @@ DB_PATH = os.path.join(
     "data",
     "books.db",
 )
+
+# 하이브리드 추천·로컬 테스트용 기본 사용자
+DEV_TEST_USER_ID = "dev_user_1"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS books (
@@ -57,9 +61,30 @@ CREATE TABLE IF NOT EXISTS book_raw_docs (
     FOREIGN KEY (isbn13) REFERENCES books(isbn13) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_raw_docs_isbn13 ON book_raw_docs(isbn13);
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT NOT NULL PRIMARY KEY,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS user_book_actions (
+    id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    user_id       TEXT    NOT NULL,
+    isbn13        TEXT    NOT NULL,
+    action_type   TEXT    NOT NULL DEFAULT 'read_complete',
+    occurred_at   TEXT    NOT NULL,
+    rating        REAL    NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (isbn13) REFERENCES books(isbn13) ON DELETE CASCADE,
+    UNIQUE (user_id, isbn13, action_type)
+);
+CREATE INDEX IF NOT EXISTS idx_uba_user ON user_book_actions(user_id);
+CREATE INDEX IF NOT EXISTS idx_uba_isbn ON user_book_actions(isbn13);
 """
 
 _DROP_DDL = """
+DROP TABLE IF EXISTS user_book_actions;
+DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS book_raw_docs;
 DROP TABLE IF EXISTS book_keywords;
 DROP TABLE IF EXISTS books;
@@ -235,3 +260,69 @@ def insert_raw_docs(isbn13: str, raw_docs: list[dict], db_path: str = DB_PATH) -
                 for d in raw_docs
             ],
         )
+
+
+def count_user_book_actions(user_id: str, db_path: str = DB_PATH) -> int:
+    with get_conn(db_path) as conn:
+        cur = conn.execute(
+            "SELECT COUNT(*) FROM user_book_actions WHERE user_id = ?",
+            (user_id,),
+        )
+        return int(cur.fetchone()[0])
+
+
+def seed_test_user_reads(
+    db_path: str = DB_PATH,
+    user_id: str = DEV_TEST_USER_ID,
+    n: int = 10,
+) -> int:
+    """`books`에 있는 ISBN 중 최대 n권까지 `user_book_actions`에 완독 이력을 채운다.
+
+    이미 n건 이상이면 0을 반환한다. 부족하면 아직 없는 ISBN을 무작위로 골라 채운다.
+
+    Returns:
+        새로 삽입된 행 수
+    """
+    create_schema(db_path)
+    existing = count_user_book_actions(user_id, db_path)
+    if existing >= n:
+        return 0
+
+    need = n - existing
+    with get_conn(db_path) as conn:
+        cur = conn.execute("SELECT COUNT(*) FROM books")
+        if int(cur.fetchone()[0]) == 0:
+            return 0
+
+        conn.execute(
+            "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
+            (user_id,),
+        )
+
+        cur = conn.execute(
+            """
+            SELECT b.isbn13 FROM books AS b
+            WHERE b.isbn13 NOT IN (
+                SELECT isbn13 FROM user_book_actions
+                WHERE user_id = ? AND action_type = 'read_complete'
+            )
+            ORDER BY RANDOM()
+            LIMIT ?
+            """,
+            (user_id, need),
+        )
+        isbns = [row[0] for row in cur.fetchall()]
+
+        now = datetime.now(timezone.utc)
+        for i, isbn13 in enumerate(isbns):
+            occurred = (now - timedelta(days=30 - i * 2)).isoformat()
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO user_book_actions
+                    (user_id, isbn13, action_type, occurred_at, rating)
+                VALUES (?, ?, 'read_complete', ?, NULL)
+                """,
+                (user_id, isbn13, occurred),
+            )
+
+    return count_user_book_actions(user_id, db_path) - existing

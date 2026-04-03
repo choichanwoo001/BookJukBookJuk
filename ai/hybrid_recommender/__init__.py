@@ -7,8 +7,8 @@ Knowledge Graph + RippleNet + Hybrid Scoring + XAI 를 결합한
     from hybrid_recommender import HybridRecommenderPipeline, UserProfile
 
     pipeline = HybridRecommenderPipeline.from_env()
-    await pipeline.add_books(isbn_list=["9788937460470", "9788936434120"])
-    pipeline.user_profile.add_read("9788937460470", "채식주의자")
+    await pipeline.add_books(isbn_list=[...])  # ISBN 목록 또는 books.db 연동
+    pipeline.user_profile.add_read("ISBN-13", "도서 제목")
     results = await pipeline.recommend(top_k=5)
 """
 from .pipeline import HybridRecommenderPipeline
