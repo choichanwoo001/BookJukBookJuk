@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
-import { SECTIONS, enrichBookDetail } from '../data/dummyBooks'
+import { ALL_BOOKS } from '../data/dummyBooks'
 import './Search.css'
 
 const TABS = [
@@ -10,9 +10,6 @@ const TABS = [
   { id: 'collection', label: '컬렉션' },
   { id: 'user', label: '유저' },
 ]
-
-// SECTIONS에서 모든 책을 평탄화
-const ALL_BOOKS = SECTIONS.flatMap((s) => s.books).map((b) => enrichBookDetail(b))
 
 function Search() {
   const navigate = useNavigate()
