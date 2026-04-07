@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { pickImageBySeed } from '../data/imagePool'
+import { pickFallbackCoverById } from '../data/coverUrl'
 import { SECTIONS } from '../data/dummyBooks'
 import './My.css'
 
@@ -138,7 +139,16 @@ function My() {
                 <div className="my-collection-grid">
                   {collection.books.map((book) => (
                     <div key={book.id} className="my-collection-cover">
-                      <img src={book.image} alt={book.title} />
+                      <img
+                        src={book.image}
+                        alt={book.title}
+                        onError={(e) => {
+                          const el = e.currentTarget
+                          if (el.dataset.fallback === '1') return
+                          el.dataset.fallback = '1'
+                          el.src = pickFallbackCoverById(book.id)
+                        }}
+                      />
                     </div>
                   ))}
                 </div>

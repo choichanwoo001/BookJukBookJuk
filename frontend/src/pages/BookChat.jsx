@@ -36,15 +36,9 @@ function getMockResponse(book, userMessage) {
   return `${book.title}에 대해 관심 가져주셔서 감사해요. 줄거리, 작가, 추천 이유, 카테고리 같은 걸 물어보시면 더 자세히 말씀드릴 수 있어요!`
 }
 
-function BookChat() {
-  const { id } = useParams()
-  const book = getBookById(id ?? '')
+function BookChatInner({ book, id }) {
   const { messages, input, setInput, isLoading, scrollRef, handleSend, handleKeyDown } =
     useChat((text) => getMockResponse(book, text))
-
-  if (!book) {
-    return <Navigate to="/" replace />
-  }
 
   return (
     <div className="book-chat-page">
@@ -126,6 +120,17 @@ function BookChat() {
       </footer>
     </div>
   )
+}
+
+function BookChat() {
+  const { id } = useParams()
+  const book = getBookById(id ?? '')
+
+  if (!book) {
+    return <Navigate to="/" replace />
+  }
+
+  return <BookChatInner book={book} id={id} />
 }
 
 export default BookChat

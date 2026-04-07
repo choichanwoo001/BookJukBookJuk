@@ -86,6 +86,10 @@
   border: none;
   overflow: visible;
   transition: transform 0.15s ease;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .book-detail-character-btn:hover {

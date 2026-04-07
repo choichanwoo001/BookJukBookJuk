@@ -5,6 +5,7 @@ import StoreMap from '../components/StoreMap'
 import PopularComments from '../components/PopularComments'
 import { useTab } from '../hooks/useTab'
 import { CHARACTER_IMG } from '../data/constants'
+import { pickFallbackCoverById } from '../data/coverUrl'
 import './BookDetail.css'
 
 function BookDetail() {
@@ -57,7 +58,16 @@ function BookDetail() {
           <div className="book-detail-images">
             <div className="book-detail-img-cell">
               <div className="book-detail-img-frame book-detail-book">
-                <img src={book.image} alt={book.title} />
+                <img
+                  src={book.image}
+                  alt={book.title}
+                  onError={(e) => {
+                    const el = e.currentTarget
+                    if (el.dataset.fallback === '1') return
+                    el.dataset.fallback = '1'
+                    el.src = pickFallbackCoverById(book.id)
+                  }}
+                />
               </div>
             </div>
             <div className="book-detail-img-cell">
