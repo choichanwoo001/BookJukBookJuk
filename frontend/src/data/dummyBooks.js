@@ -1,13 +1,20 @@
-import BOOKS_CATALOG from './booksCatalog.json'
+import { getCatalogRows } from '../bootstrap/catalogInit.js'
 import { hashString } from './hashString'
 import { coverForListBook } from './coverUrl'
 
-/** ai/data/books.db 내보낸 목록을 섞어 홈 섹션에 배치 (재실행 시 같은 시드면 동일). */
+/** booksCatalog.json / Supabase 카탈로그와 맞춘 더미 섞음 (재실행 시 같은 시드면 동일). */
 const SEED_SHUFFLE = 0xbeefcafe
 const BOOKS_PER_SECTION = 4
 const SECTION_COUNT = 4
 
-const CATALOG_BY_ID = new Map(BOOKS_CATALOG.map((row) => [row.id, row]))
+let catalogMapCache = null
+
+function catalogById() {
+  if (!catalogMapCache) {
+    catalogMapCache = new Map(getCatalogRows().map((row) => [row.id, row]))
+  }
+  return catalogMapCache
+}
 
 function mulberry32(seed) {
   let a = seed >>> 0
@@ -43,7 +50,7 @@ function toListBook(row) {
   }
 }
 
-const shuffled = shuffleSeeded([...BOOKS_CATALOG], SEED_SHUFFLE)
+const shuffled = shuffleSeeded([...getCatalogRows()], SEED_SHUFFLE)
 const pickCount = Math.min(SECTION_COUNT * BOOKS_PER_SECTION, shuffled.length)
 const picked = shuffled.slice(0, pickCount)
 
@@ -238,10 +245,10 @@ export function getCommentById(bookId, commentId) {
 export function getBookById(id) {
   const key = id == null ? '' : String(id)
   if (!key) return null
-  const row = CATALOG_BY_ID.get(key)
+  const row = catalogById().get(key)
   if (!row) return null
   return enrichBookDetail(toListBook(row))
 }
 
-/** 검색용: DB 전체(목업) — enrichBookDetail·COMMENT_SETS 초기화 이후에만 평가 */
-export const ALL_BOOKS = BOOKS_CATALOG.map((row) => enrichBookDetail(toListBook(row)))
+/** 검색용: 카탈로그 전체 — initCatalog 이후 Supabase 또는 로컬 JSON */
+export const ALL_BOOKS = getCatalogRows().map((row) => enrichBookDetail(toListBook(row)))
