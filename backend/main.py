@@ -10,10 +10,9 @@ from fastapi import FastAPI, Query
 from fastapi.responses import RedirectResponse
 
 ROOT = Path(__file__).resolve().parent.parent
-
-for env_path in (ROOT / ".env", ROOT / "ai" / ".env", Path(__file__).resolve().parent / ".env"):
-    if env_path.is_file():
-        load_dotenv(env_path)
+_env = ROOT / ".env"
+if _env.is_file():
+    load_dotenv(_env)
 
 ALADIN_LOOKUP = "https://www.aladin.co.kr/ttb/api/ItemLookUp.aspx"
 
