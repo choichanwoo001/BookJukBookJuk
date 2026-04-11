@@ -1,10 +1,9 @@
 """북적북적 하이브리드 추천 엔진 CLI 진입점
 
-사용 예시:
-    # books.db 카탈로그 + DB 독서 이력(기본 user dev_user_1)
-    python hybrid_recommender_main.py --user-id dev_user_1
+카탈로그·독서 이력은 로컬 SQLite 없이 CLI·저장된 파이프라인만 사용합니다.
 
-    # ISBN 직접 지정 (독서 이력은 DB 대신 CLI)
+사용 예시:
+    # ISBN으로 카탈로그 + 사용자 이력 지정
     python hybrid_recommender_main.py --catalog-isbn 9788937460470 9788936434120 \\
         --user-isbn 9788937460470
 
@@ -13,9 +12,6 @@
 
     # 대화형 모드
     python hybrid_recommender_main.py --interactive
-
-    # DB에서 BookContext 우선 (API 호출 최소화)
-    python hybrid_recommender_main.py --prefer-db-book-context
 """
 from __future__ import annotations
 
@@ -23,19 +19,21 @@ import argparse
 import asyncio
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from book_seeder.db import DEV_TEST_USER_ID, create_schema, seed_test_user_reads
-from hybrid_recommender import HybridRecommenderPipeline
-from hybrid_recommender.sqlite_catalog import (
-    list_catalog_isbns,
-    load_user_read_actions,
-    resolve_books_db_path,
-)
+_AI_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _AI_DIR.parent
+_env = _REPO_ROOT / ".env"
+if _env.is_file():
+    load_dotenv(_env)
 
-load_dotenv()
+sys.path.insert(0, str(_AI_DIR))
+
+DEV_TEST_USER_ID = "dev_user_1"
+
+from hybrid_recommender import HybridRecommenderPipeline
 
 
 def _print_header() -> None:
@@ -100,25 +98,10 @@ async def run_recommend(args: argparse.Namespace) -> None:
         )
         pipeline.load(args.load_dir)
     else:
-        db_path = resolve_books_db_path(args.db_path)
-        create_schema(db_path)
-
-        if not args.no_dev_seed:
-            n = seed_test_user_reads(db_path, user_id=args.user_id)
-            if n > 0:
-                print(f"[시드] 사용자 {args.user_id!r} 독서 이력 {n}건 추가")
-
-        catalog_isbns = args.catalog_isbn
-        if not catalog_isbns:
-            catalog_isbns = list_catalog_isbns(
-                db_path,
-                sector=args.catalog_sector,
-                limit=args.catalog_limit,
-            )
-        if not catalog_isbns:
+        if not args.catalog_isbn:
             _exit(
-                "[오류] 카탈로그 ISBN이 없습니다. "
-                "`--catalog-isbn`을 주거나 books.db에 books 행이 있어야 합니다."
+                "[오류] `--catalog-isbn`으로 ISBN 목록을 지정하세요. "
+                "(카탈로그는 Supabase·앱에서 관리하며 로컬 DB는 사용하지 않습니다.)"
             )
 
         pipeline = HybridRecommenderPipeline.from_env(
@@ -126,41 +109,25 @@ async def run_recommend(args: argparse.Namespace) -> None:
             noise_threshold=args.noise_threshold,
             mmr_lambda=args.mmr_lambda,
             epsilon=args.epsilon,
-            books_db_path=db_path,
-            prefer_db_book_context=args.prefer_db_book_context,
         )
 
-        print(f"[카탈로그] {len(catalog_isbns)}권 등록 시작...")
+        print(f"[카탈로그] {len(args.catalog_isbn)}권 등록 시작...")
         await pipeline.add_books(
-            isbn_list=catalog_isbns,
+            isbn_list=args.catalog_isbn,
             concurrency=args.concurrency,
         )
 
     loaded_from_dir = bool(args.load_dir and os.path.exists(args.load_dir))
     if not loaded_from_dir:
-        if args.user_isbn:
-            print(f"\n[사용자 이력] CLI에서 {len(args.user_isbn)}권 등록 중...")
-            for isbn in args.user_isbn:
-                title = pipeline._book_titles.get(isbn, isbn)
-                pipeline.user_profile.add_read(isbn, title)
-                print(f"  - {title} ({isbn})")
-        else:
-            db_path = resolve_books_db_path(args.db_path)
-            records = load_user_read_actions(args.user_id, db_path)
-            if not records:
-                _exit(
-                    "[오류] DB에 독서 이력이 없습니다. "
-                    "`--user-isbn`으로 넘기거나, 시드(`--no-dev-seed` 해제) 및 `--user-id`를 확인하세요."
-                )
-            print(f"\n[사용자 이력] DB에서 {len(records)}권 로드...")
-            for rec in records:
-                pipeline.user_profile.add_read(
-                    rec.isbn13,
-                    rec.title,
-                    timestamp=rec.occurred_at,
-                    rating=rec.rating,
-                )
-                print(f"  - {rec.title} ({rec.isbn13})")
+        if not args.user_isbn:
+            _exit(
+                "[오류] `--user-isbn`으로 독서 이력(ISBN)을 지정하세요."
+            )
+        print(f"\n[사용자 이력] CLI에서 {len(args.user_isbn)}권 등록 중...")
+        for isbn in args.user_isbn:
+            title = pipeline._book_titles.get(isbn, isbn)
+            pipeline.user_profile.add_read(isbn, title)
+            print(f"  - {title} ({isbn})")
 
     print(f"\n  {pipeline.user_profile.summary()}")
 
@@ -184,30 +151,26 @@ async def run_interactive(args: argparse.Namespace) -> None:
     _print_header()
     print("대화형 모드 시작. 'help' 로 명령어 확인, 'quit' 로 종료.\n")
 
-    db_path = resolve_books_db_path(args.db_path)
-    create_schema(db_path)
-
     pipeline = HybridRecommenderPipeline.from_env(
         user_id=args.user_id,
-        books_db_path=db_path,
-        prefer_db_book_context=args.prefer_db_book_context,
+        noise_threshold=args.noise_threshold,
+        mmr_lambda=args.mmr_lambda,
+        epsilon=args.epsilon,
     )
 
     if args.load_dir and os.path.exists(args.load_dir):
         pipeline.load(args.load_dir)
-    elif args.interactive_load_catalog:
-        if not args.no_dev_seed:
-            seed_test_user_reads(db_path, user_id=args.user_id)
-        isbns = args.catalog_isbn or list_catalog_isbns(
-            db_path,
-            sector=args.catalog_sector,
-            limit=args.catalog_limit,
+    elif args.interactive_load_catalog and args.catalog_isbn:
+        print(f"[카탈로그] --catalog-isbn {len(args.catalog_isbn)}권 등록...")
+        await pipeline.add_books(
+            isbn_list=args.catalog_isbn,
+            concurrency=args.concurrency,
         )
-        if isbns:
-            print(f"[카탈로그] DB에서 {len(isbns)}권 로드...")
-            await pipeline.add_books(isbn_list=isbns, concurrency=args.concurrency)
-        else:
-            print("[WARN] DB에 books가 없어 카탈로그를 건너뜁니다. add <isbn> 으로 등록하세요.")
+    elif args.interactive_load_catalog:
+        print(
+            "[안내] `--interactive-load-catalog` 는 `--catalog-isbn` 과 함께 쓰거나, "
+            "시작 후 `add <isbn>` 으로 등록하세요."
+        )
 
     while True:
         try:
@@ -289,45 +252,18 @@ def main() -> None:
     parser.add_argument(
         "--interactive-load-catalog",
         action="store_true",
-        help="대화형 시작 시 DB에서 카탈로그 ISBN을 불러와 add_books",
+        help="대화형 시작 시 --catalog-isbn 목록으로 add_books",
     )
 
     parser.add_argument(
         "--user-isbn", nargs="+",
         metavar="ISBN",
-        help="사용자 독서 이력(지정 시 DB 이력 대신 사용)",
+        help="배치 모드에서 사용자 독서 이력(ISBN). --load-dir 없을 때 필수",
     )
     parser.add_argument(
         "--catalog-isbn", nargs="+",
         metavar="ISBN",
-        help="카탈로그 구축용 ISBN(미지정 시 books.db에서 로드, 기본은 전체 권수)",
-    )
-    parser.add_argument(
-        "--db-path",
-        default=None,
-        help="books.db 경로(기본: BOOKS_DB_PATH 환경변수 또는 ai/data/books.db)",
-    )
-    parser.add_argument(
-        "--catalog-sector",
-        type=int,
-        default=None,
-        help="카탈로그를 KDC sector로 필터(미지정이면 전체)",
-    )
-    parser.add_argument(
-        "--catalog-limit",
-        type=int,
-        default=0,
-        help="DB에서 가져올 최대 권수(기본 0=제한 없음·전체, 양수면 상한)",
-    )
-    parser.add_argument(
-        "--no-dev-seed",
-        action="store_true",
-        help="dev_user_1 스타일 시드(seed_test_user_reads) 생략",
-    )
-    parser.add_argument(
-        "--prefer-db-book-context",
-        action="store_true",
-        help="books.db에 있으면 BookContext를 DB에서 조립(API 호출 생략)",
+        help="카탈로그 구축용 ISBN. --load-dir 없을 때 필수",
     )
 
     parser.add_argument("--top-k", type=int, default=5, help="추천 수 (기본 5)")
@@ -355,9 +291,6 @@ def main() -> None:
     parser.add_argument("--load-dir", help="파이프라인 로드 경로")
 
     args = parser.parse_args()
-
-    if args.catalog_limit is not None and args.catalog_limit <= 0:
-        args.catalog_limit = None
 
     if args.interactive:
         asyncio.run(run_interactive(args))

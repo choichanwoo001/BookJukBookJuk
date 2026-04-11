@@ -75,8 +75,6 @@ class HybridRecommenderPipeline:
         use_pinecone: bool = False,
         pinecone_config: dict | None = None,
         user_id: str = "default_user",
-        books_db_path: str | None = None,
-        prefer_db_book_context: bool = False,
     ) -> None:
         self.client = openai_client
         self.library_api_key = library_api_key
@@ -111,35 +109,29 @@ class HybridRecommenderPipeline:
 
         # 등록된 책 제목 캐시 {isbn: title}
         self._book_titles: dict[str, str] = {}
-        self.books_db_path = books_db_path
-        self.prefer_db_book_context = prefer_db_book_context
 
     @classmethod
     def from_env(cls, user_id: str = "default_user", **kwargs: Any) -> "HybridRecommenderPipeline":
         """환경 변수에서 설정을 읽어 파이프라인을 초기화한다."""
+        from pathlib import Path
+
         from dotenv import load_dotenv
-        load_dotenv()
+
+        _root = Path(__file__).resolve().parents[2]
+        _env = _root / ".env"
+        if _env.is_file():
+            load_dotenv(_env)
 
         openai_key = os.getenv("OPENAI_API_KEY", "")
         if not openai_key:
             raise ValueError("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
 
         client = AsyncOpenAI(api_key=openai_key)
-        prefer_db_env = os.getenv("HYBRID_PREFER_DB_BOOK_CONTEXT", "").strip().lower() in (
-            "1",
-            "true",
-            "yes",
-        )
-        books_db_env = os.getenv("BOOKS_DB_PATH", "").strip() or None
-        prefer_db = kwargs.pop("prefer_db_book_context", prefer_db_env)
-        books_db = kwargs.pop("books_db_path", books_db_env)
         return cls(
             openai_client=client,
             library_api_key=os.getenv("LIBRARY_API_KEY", ""),
             aladin_api_key=os.getenv("ALADIN_API_KEY", ""),
             user_id=user_id,
-            books_db_path=books_db,
-            prefer_db_book_context=prefer_db,
             **kwargs,
         )
 
@@ -163,13 +155,7 @@ class HybridRecommenderPipeline:
         Returns:
             수집된 BookContext
         """
-        # 1) 데이터 수집 (옵션: books.db에서 BookContext 조립 후 API 생략)
-        if ctx is None and self.prefer_db_book_context and isbn:
-            from .db_book_context import book_context_from_db
-
-            ctx = book_context_from_db(isbn, self.books_db_path)
-            if ctx is not None:
-                print(f"[Phase 1] DB에서 컨텍스트 로드: {isbn}")
+        # 1) 데이터 수집
         if ctx is None:
             print(f"[Phase 1] 데이터 수집 중: {isbn or title}")
             ctx = await collect_book_context(

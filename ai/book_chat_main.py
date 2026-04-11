@@ -12,10 +12,14 @@ import argparse
 import asyncio
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+_REPO = Path(__file__).resolve().parent.parent
+_env = _REPO / ".env"
+if _env.is_file():
+    load_dotenv(_env)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

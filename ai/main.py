@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import time
+from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -18,9 +19,12 @@ from taste_analysis import (
     visualize_clusters,
 )
 
-load_dotenv()
+_REPO = Path(__file__).resolve().parent.parent
+_env = _REPO / ".env"
+if _env.is_file():
+    load_dotenv(_env)
 
-# .env 에서 읽음: LIBRARY_API_KEY(정보나루), OPENAI_API_KEY
+# 루트 .env 에서 읽음: LIBRARY_API_KEY(정보나루), OPENAI_API_KEY
 LIBRARY_API_KEY = os.getenv("LIBRARY_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
