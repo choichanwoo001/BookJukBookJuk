@@ -28,8 +28,8 @@ No linter, formatter, or test runner is configured for the frontend.
 
 ### Backend AI (Python)
 ```bash
-cd ai
 pip install -r requirements.txt
+cd ai
 
 # Taste analysis
 python main.py --random
@@ -48,11 +48,11 @@ python hybrid_recommender_main.py --load-dir ./saved_pipeline
 
 No test suite or linter is configured for the AI modules.
 
-### Required Environment Variables (see `ai/.env.example`)
+### Required Environment Variables (see repository root `.env.example`)
 - `OPENAI_API_KEY` — Required by all AI modules
 - `LIBRARY_API_KEY` — 정보나루 Korean Library API (taste analysis, recommender)
 - `ALADIN_API_KEY` — Aladin TTB book metadata API (book chat)
-- `NEO4J_URI/USER/PASSWORD` — Optional; falls back to NetworkX in-memory KG
+- `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (or anon where appropriate) — Book metadata / hybrid recommender `HYBRID_USE_SUPABASE`; `HYBRID_PERSIST_KG=1` → KG tables + (by default) `HYBRID_PERSIST_EMBEDDINGS` → `book_vectors` upsert/load
 - `PINECONE_API_KEY/PINECONE_INDEX_NAME` — Optional; falls back to numpy in-memory vectors
 
 ## Architecture
@@ -72,7 +72,7 @@ Three independent Python modules, each runnable standalone. Core deps: OpenAI (g
 2. **Book Chat** (`book_chat/`, entry: `book_chat_main.py`) — Hybrid retrieval QA for a specific book. Pipeline: `data_collector` → `graph_builder` (KG) + `vector_store` (embeddings) → `retriever` (graph + vector blend) → `chat_engine` (LLM with relevance guard).
 
 3. **Hybrid Recommender** (`hybrid_recommender/`, entry: `hybrid_recommender_main.py`) — 4-phase pipeline:
-   - Phase 1 (`phase1_kg/`): LLM entity extraction → KG build (NetworkX or Neo4j) → noise filter
+   - Phase 1 (`phase1_kg/`): LLM entity extraction → KG build (NetworkX in-memory) → noise filter; optional `HYBRID_PERSIST_KG` → `kg_nodes`/`kg_edges`; book metadata via `HYBRID_USE_SUPABASE`
    - Phase 2 (`phase2_model/`): OpenAI embeddings + RippleNet GNN, cold-start handling, Pinecone or numpy storage
    - Phase 3 (`phase3_scoring/`): User profile tracking, hybrid score = α·Graph + (1-α)·Vector with time decay
    - Phase 4 (`phase4_xai/`): MMR diversity, ε-greedy exploration, LLM-generated explanations
