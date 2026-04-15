@@ -329,27 +329,29 @@ async def collect_book_context(
             wiki_sections = await _fetch_wikipedia_sections(client, final_title, "en")
 
     # ── 원문 문서 목록 조립 (벡터 스토어용) ───────────────────
+    # 정책:
+    # - 그래프 전용: keywords, wiki section (관계/엔티티 추출용)
+    # - 중복 허용(그래프 + 벡터): 책 핵심 요약, 작가 핵심 소개
+    #   * 책 핵심 요약: 알라딘 description (없으면 wiki_book)
+    #   * 작가 핵심 소개: wiki_author (없으면 aladin author_bio)
+    # - 벡터 전용: editorial_review (서술형 감상 맥락)
     raw_docs: list[dict] = []
+
+    # (중복 1) 책 핵심 요약
     if description:
         raw_docs.append({"text": description, "source": "알라딘", "doc_type": "description"})
-    if author_bio:
-        raw_docs.append({"text": author_bio, "source": "알라딘", "doc_type": "biography"})
-    if editorial_review:
-        raw_docs.append({"text": editorial_review, "source": "알라딘", "doc_type": "review"})
-    if wiki_book:
+    elif wiki_book:
         raw_docs.append({"text": wiki_book, "source": "위키피디아", "doc_type": "summary"})
+
+    # (중복 2) 작가 핵심 소개
     if wiki_author:
         raw_docs.append({"text": wiki_author, "source": "위키피디아", "doc_type": "biography"})
-    for sec in wiki_sections:
-        raw_docs.append({
-            "text": sec["text"],
-            "source": "위키피디아",
-            "doc_type": "section",
-            "section_title": sec["title"],
-        })
-    if library_keywords:
-        kw_text = ", ".join(kw.word for kw in library_keywords)
-        raw_docs.append({"text": f"핵심 키워드: {kw_text}", "source": "정보나루", "doc_type": "keywords"})
+    elif author_bio:
+        raw_docs.append({"text": author_bio, "source": "알라딘", "doc_type": "biography"})
+
+    # 벡터 전용(긴 서술 텍스트)
+    if editorial_review:
+        raw_docs.append({"text": editorial_review, "source": "알라딘", "doc_type": "review"})
 
     return BookContext(
         isbn13=resolved_isbn,
