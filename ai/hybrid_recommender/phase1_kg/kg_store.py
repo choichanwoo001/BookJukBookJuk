@@ -1,6 +1,6 @@
-"""KG 저장소 추상화: Neo4jKGStore / NetworkXKGStore
+"""KG 저장소 추상화: NetworkX 인메모리 그래프.
 
-Neo4j 가 설치되지 않은 환경에서는 NetworkX 로 자동 폴백한다.
+영속 저장은 Neo4j 대신 Supabase(Postgres) 스키마로 다루는 것을 전제로 한다.
 RippleNet 학습에 필요한 엔티티/관계 인덱스 매핑도 관리한다.
 """
 from __future__ import annotations
@@ -321,146 +321,14 @@ class NetworkXKGStore(KGStore):
         return store
 
 
-# ── Neo4j 구현 (선택적) ───────────────────────────────────────────────────────
-
-
-class Neo4jKGStore(KGStore):
-    """Neo4j 기반 KG 저장소. `pip install neo4j` 필요."""
-
-    def __init__(self, uri: str, user: str, password: str) -> None:
-        try:
-            from neo4j import GraphDatabase  # type: ignore[import]
-            self._driver = GraphDatabase.driver(uri, auth=(user, password))
-            self._available = True
-            print(f"[INFO] Neo4j 연결 성공: {uri}")
-        except ImportError:
-            raise RuntimeError("neo4j 패키지가 설치되지 않았습니다. pip install neo4j")
-        except Exception as e:
-            raise RuntimeError(f"Neo4j 연결 실패: {e}")
-
-    def close(self) -> None:
-        if self._driver:
-            self._driver.close()
-
-    def add_node(self, node_id: str, node_type: str, **attrs: Any) -> None:
-        props = {"node_id": node_id, **attrs}
-        query = (
-            f"MERGE (n:{node_type} {{node_id: $node_id}}) "
-            "SET n += $props"
-        )
-        with self._driver.session() as session:
-            session.run(query, node_id=node_id, props=props)
-
-    def add_edge(
-        self,
-        src: str,
-        dst: str,
-        relation: str,
-        confidence: float = 1.0,
-        **attrs: Any,
-    ) -> None:
-        query = (
-            "MATCH (a {node_id: $src}), (b {node_id: $dst}) "
-            f"MERGE (a)-[r:{relation}]->(b) "
-            "SET r.confidence = $confidence, r += $attrs"
-        )
-        with self._driver.session() as session:
-            session.run(query, src=src, dst=dst, confidence=confidence, attrs=attrs)
-
-    def get_node(self, node_id: str) -> dict[str, Any] | None:
-        with self._driver.session() as session:
-            result = session.run(
-                "MATCH (n {node_id: $node_id}) RETURN n", node_id=node_id
-            )
-            record = result.single()
-            return dict(record["n"]) if record else None
-
-    def get_neighbors(
-        self,
-        node_id: str,
-        relation: str | None = None,
-        min_confidence: float = 0.0,
-    ) -> list[tuple[str, str, float]]:
-        rel_filter = f"[r:{relation}]" if relation else "[r]"
-        query = (
-            f"MATCH (a {{node_id: $node_id}})-{rel_filter}->(b) "
-            "WHERE r.confidence >= $min_conf "
-            "RETURN b.node_id AS neighbor, type(r) AS rel, r.confidence AS conf"
-        )
-        with self._driver.session() as session:
-            result = session.run(query, node_id=node_id, min_conf=min_confidence)
-            return [(r["neighbor"], r["rel"], r["conf"]) for r in result]
-
-    def get_ripple_set(
-        self,
-        seed_ids: list[str],
-        hop: int,
-        n_memory: int = 32,
-    ) -> list[tuple[str, str, str]]:
-        depth = hop + 1
-        query = (
-            "MATCH (seed)-[*" + str(depth) + "]->(tail) "
-            "WHERE seed.node_id IN $seed_ids "
-            "MATCH (head)-[r]->(tail) "
-            "RETURN head.node_id AS h, type(r) AS rel, tail.node_id AS t, "
-            "r.confidence AS conf "
-            "ORDER BY conf DESC LIMIT $n_memory"
-        )
-        with self._driver.session() as session:
-            result = session.run(query, seed_ids=seed_ids, n_memory=n_memory)
-            return [(r["h"], r["rel"], r["t"]) for r in result]
-
-    def find_paths(
-        self,
-        src_id: str,
-        dst_id: str,
-        max_hops: int = 3,
-    ) -> list[list[str]]:
-        query = (
-            "MATCH p = shortestPath((a {node_id: $src})-[*1.." + str(max_hops) + "]->(b {node_id: $dst})) "
-            "RETURN [node IN nodes(p) | node.node_id] AS path"
-        )
-        with self._driver.session() as session:
-            result = session.run(query, src=src_id, dst=dst_id)
-            return [r["path"] for r in result]
-
-    def all_entity_ids(self) -> list[str]:
-        with self._driver.session() as session:
-            result = session.run("MATCH (n) RETURN n.node_id AS id")
-            return [r["id"] for r in result if r["id"]]
-
-    def all_relations(self) -> list[str]:
-        with self._driver.session() as session:
-            result = session.run("CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType")
-            return [r["relationshipType"] for r in result]
-
-    def node_count(self) -> int:
-        with self._driver.session() as session:
-            result = session.run("MATCH (n) RETURN count(n) AS cnt")
-            return result.single()["cnt"]
-
-    def edge_count(self) -> int:
-        with self._driver.session() as session:
-            result = session.run("MATCH ()-[r]->() RETURN count(r) AS cnt")
-            return result.single()["cnt"]
-
-    def summary(self) -> str:
-        return f"Neo4j KG: 노드 {self.node_count()}개, 엣지 {self.edge_count()}개"
-
-
 # ── 팩토리 함수 ───────────────────────────────────────────────────────────────
 
 
-def create_kg_store(
-    backend: str = "networkx",
-    neo4j_uri: str = "",
-    neo4j_user: str = "",
-    neo4j_password: str = "",
-) -> KGStore:
-    """KG 저장소를 생성한다. Neo4j 가 실패하면 NetworkX 로 폴백."""
-    if backend == "neo4j" and neo4j_uri:
-        try:
-            return Neo4jKGStore(neo4j_uri, neo4j_user, neo4j_password)
-        except Exception as e:
-            print(f"[WARN] Neo4j 초기화 실패, NetworkX 로 폴백합니다: {e}")
+def create_kg_store(backend: str = "networkx") -> KGStore:
+    """인메모리 NetworkX KG만 지원한다. 영속화는 Supabase 스키마로 별도 설계."""
+    if backend and str(backend).lower() != "networkx":
+        print(
+            "[INFO] KG 백엔드는 NetworkX만 지원합니다. "
+            "(Neo4j 미사용 — 메타/임베딩은 Supabase 참고)"
+        )
     return NetworkXKGStore()

@@ -20,6 +20,16 @@ from openai import AsyncOpenAI
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from book_chat.data_collector import collect_book_context, BookContext
 
+from .kg_supabase import load_kg_from_supabase, save_kg_to_supabase
+from .vector_supabase import (
+    load_book_vectors_from_supabase,
+    upsert_all_book_vectors,
+    upsert_book_vector,
+)
+from .supabase_book_context import (
+    create_supabase_client_from_env,
+    load_book_context_from_supabase,
+)
 from .phase1_kg.entity_extractor import EntityExtractor
 from .phase1_kg.kg_store import NetworkXKGStore, create_kg_store
 from .phase1_kg.noise_filter import NoiseFilter
@@ -53,13 +63,15 @@ class HybridRecommenderPipeline:
         openai_client: AsyncOpenAI 클라이언트
         library_api_key: 정보나루 API 키
         aladin_api_key: 알라딘 TTB API 키
-        kg_backend: KG 저장소 백엔드 ('networkx' | 'neo4j')
-        neo4j_config: Neo4j 연결 설정 딕셔너리 (선택적)
         noise_threshold: 노이즈 필터 임계값 (기본 0.50)
         mmr_lambda: MMR 다양성 계수 (기본 0.6)
         epsilon: Epsilon-greedy 탐색률 (기본 0.15)
         use_pinecone: Pinecone 벡터 DB 사용 여부
         pinecone_config: Pinecone 연결 설정 (선택적)
+        supabase_client: Supabase 클라이언트 (선택, `use_supabase` 와 함께)
+        use_supabase: True 이면 ISBN 등록 시 `books`+`book_api_cache` 우선 로드
+        persist_kg: True 이면 KG를 `kg_nodes`/`kg_edges`에 저장·시작 시 로드 (`HYBRID_PERSIST_KG`)
+        persist_embeddings: True 이면 `book_vectors`에 임베딩 upsert·시작 시 로드 (`HYBRID_PERSIST_EMBEDDINGS`, 기본은 persist_kg 와 동일)
     """
 
     def __init__(
@@ -67,24 +79,32 @@ class HybridRecommenderPipeline:
         openai_client: AsyncOpenAI,
         library_api_key: str = "",
         aladin_api_key: str = "",
-        kg_backend: str = "networkx",
-        neo4j_config: dict | None = None,
         noise_threshold: float = 0.50,
         mmr_lambda: float = 0.6,
         epsilon: float = 0.15,
         use_pinecone: bool = False,
         pinecone_config: dict | None = None,
         user_id: str = "default_user",
+        supabase_client: Any | None = None,
+        use_supabase: bool = False,
+        persist_kg: bool = False,
+        persist_embeddings: bool = False,
     ) -> None:
         self.client = openai_client
         self.library_api_key = library_api_key
         self.aladin_api_key = aladin_api_key
+        self.supabase_client = supabase_client
+        self.use_supabase = bool(use_supabase and supabase_client is not None)
+        self.persist_kg = bool(persist_kg and supabase_client is not None)
+        self.persist_embeddings = bool(persist_embeddings and supabase_client is not None)
 
-        # ── Phase 1: KG ────────────────────────────────────────────────────
-        self.kg: NetworkXKGStore = create_kg_store(
-            backend=kg_backend,
-            **(neo4j_config or {}),
-        )
+        # ── Phase 1: KG (인메모리 NetworkX; 영속은 Supabase) ────────────────
+        self.kg: NetworkXKGStore = create_kg_store()
+        if self.persist_kg:
+            loaded = load_kg_from_supabase(supabase_client)
+            if loaded is not None and loaded.node_count() > 0:
+                self.kg = loaded
+                print(f"[KG] Supabase에서 로드: {self.kg.summary()}")
         self.entity_extractor = EntityExtractor(openai_client)
         self.noise_filter = NoiseFilter(threshold=noise_threshold)
 
@@ -94,6 +114,15 @@ class HybridRecommenderPipeline:
             use_pinecone=use_pinecone,
             pinecone_config=pinecone_config,
         )
+        self._book_titles: dict[str, str] = {}
+        if self.persist_embeddings:
+            loaded_vec = load_book_vectors_from_supabase(supabase_client)
+            if loaded_vec:
+                for bv in loaded_vec:
+                    self.vector_store.add(bv)
+                    self._book_titles[bv.isbn13] = bv.title
+                print(f"[Vector] Supabase에서 로드: {len(loaded_vec)}권")
+
         self.ripplenet_scorer: RippleNetScorer | None = None  # add_books 후 초기화
 
         # ── Phase 3: 스코어링 ──────────────────────────────────────────────
@@ -107,12 +136,15 @@ class HybridRecommenderPipeline:
         )
         self.explainer = RecommendationExplainer(openai_client, self.kg)
 
-        # 등록된 책 제목 캐시 {isbn: title}
-        self._book_titles: dict[str, str] = {}
+        if self.kg.node_count() > 0 or len(self.vector_store) > 0:
+            self._update_ripplenet_scorer()
 
     @classmethod
     def from_env(cls, user_id: str = "default_user", **kwargs: Any) -> "HybridRecommenderPipeline":
-        """환경 변수에서 설정을 읽어 파이프라인을 초기화한다."""
+        """환경 변수에서 설정을 읽어 파이프라인을 초기화한다.
+
+        `HYBRID_USE_SUPABASE=1` 이고 `SUPABASE_URL` + 키가 있으면 DB에서 BookContext 로드.
+        """
         from pathlib import Path
 
         from dotenv import load_dotenv
@@ -127,11 +159,53 @@ class HybridRecommenderPipeline:
             raise ValueError("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
 
         client = AsyncOpenAI(api_key=openai_key)
+
+        use_supabase_kw = kwargs.pop("use_supabase", None)
+        supabase_kw = kwargs.pop("supabase_client", None)
+        if use_supabase_kw is None:
+            use_supabase_kw = os.getenv("HYBRID_USE_SUPABASE", "").lower() in ("1", "true", "yes")
+        persist_kg_kw = kwargs.pop("persist_kg", None)
+        if persist_kg_kw is None:
+            persist_kg_kw = os.getenv("HYBRID_PERSIST_KG", "").lower() in ("1", "true", "yes")
+
+        persist_emb_kw = kwargs.pop("persist_embeddings", None)
+        if persist_emb_kw is None:
+            pe = os.getenv("HYBRID_PERSIST_EMBEDDINGS", "").strip().lower()
+            if pe in ("0", "false", "no"):
+                persist_emb_kw = False
+            elif pe in ("1", "true", "yes"):
+                persist_emb_kw = True
+            else:
+                persist_emb_kw = bool(persist_kg_kw)
+
+        sb_client = supabase_kw
+        if use_supabase_kw and sb_client is None:
+            sb_client = create_supabase_client_from_env()
+        if (persist_kg_kw or persist_emb_kw) and sb_client is None:
+            sb_client = create_supabase_client_from_env()
+
+        if use_supabase_kw and sb_client is None:
+            print(
+                "[WARN] HYBRID_USE_SUPABASE 이지만 SUPABASE_URL/KEY 가 없어 API 수집으로 진행합니다."
+            )
+        if persist_kg_kw and sb_client is None:
+            print(
+                "[WARN] HYBRID_PERSIST_KG 이지만 SUPABASE_URL/KEY 가 없어 KG DB 영속을 건너뜁니다."
+            )
+        if persist_emb_kw and sb_client is None:
+            print(
+                "[WARN] HYBRID_PERSIST_EMBEDDINGS 이지만 SUPABASE_URL/KEY 가 없어 임베딩 DB 동기화를 건너뜁니다."
+            )
+
         return cls(
             openai_client=client,
             library_api_key=os.getenv("LIBRARY_API_KEY", ""),
             aladin_api_key=os.getenv("ALADIN_API_KEY", ""),
             user_id=user_id,
+            supabase_client=sb_client,
+            use_supabase=bool(use_supabase_kw and sb_client is not None),
+            persist_kg=bool(persist_kg_kw and sb_client is not None),
+            persist_embeddings=bool(persist_emb_kw and sb_client is not None),
             **kwargs,
         )
 
@@ -143,6 +217,7 @@ class HybridRecommenderPipeline:
         title: str | None = None,
         author: str | None = None,
         ctx: BookContext | None = None,
+        _persist_db: bool = True,
     ) -> BookContext:
         """책을 시스템에 등록한다 (KG 구축 + 임베딩 저장).
 
@@ -155,16 +230,31 @@ class HybridRecommenderPipeline:
         Returns:
             수집된 BookContext
         """
-        # 1) 데이터 수집
+        # 1) 데이터 수집 (Supabase 우선, 없으면 기존 API)
         if ctx is None:
-            print(f"[Phase 1] 데이터 수집 중: {isbn or title}")
-            ctx = await collect_book_context(
-                isbn13=isbn,
-                title=title,
-                author=author,
-                library_api_key=self.library_api_key,
-                aladin_api_key=self.aladin_api_key,
-            )
+            if (
+                self.use_supabase
+                and self.supabase_client
+                and isbn
+                and str(isbn).strip()
+            ):
+                isbn_key = str(isbn).strip()
+                ctx = await asyncio.to_thread(
+                    load_book_context_from_supabase,
+                    self.supabase_client,
+                    isbn_key,
+                )
+                if ctx is not None:
+                    print(f"[Phase 1] 데이터 로드(Supabase): {isbn_key}")
+            if ctx is None:
+                print(f"[Phase 1] 데이터 수집(API): {isbn or title}")
+                ctx = await collect_book_context(
+                    isbn13=isbn,
+                    title=title,
+                    author=author,
+                    library_api_key=self.library_api_key,
+                    aladin_api_key=self.aladin_api_key,
+                )
 
         print(f"[Phase 1] KG 구축: '{ctx.title}'")
 
@@ -196,6 +286,17 @@ class HybridRecommenderPipeline:
 
         print(f"[OK] '{ctx.title}' 등록 완료 "
               f"({'콜드스타트' if is_cold else '일반'} 임베딩)")
+
+        if _persist_db and self.persist_kg and self.supabase_client:
+            await asyncio.to_thread(
+                save_kg_to_supabase, self.supabase_client, self.kg
+            )
+        if _persist_db and self.persist_embeddings and self.supabase_client:
+            bv = self.vector_store.get_book(isbn_key)
+            if bv is not None:
+                await asyncio.to_thread(
+                    upsert_book_vector, self.supabase_client, bv
+                )
         return ctx
 
     async def add_books(
@@ -227,13 +328,24 @@ class HybridRecommenderPipeline:
         async def _add_with_sem(isbn: str | None, title: str | None, author: str | None) -> BookContext | None:
             async with semaphore:
                 try:
-                    return await self.add_book(isbn=isbn, title=title, author=author)
+                    return await self.add_book(
+                        isbn=isbn, title=title, author=author, _persist_db=False
+                    )
                 except Exception as e:
                     print(f"[WARN] 책 등록 실패 ({isbn or title}): {e}")
                     return None
 
         ctxs = await asyncio.gather(*[_add_with_sem(i, t, a) for i, t, a in tasks])
         results = [ctx for ctx in ctxs if ctx is not None]
+
+        if self.persist_kg and self.supabase_client and results:
+            await asyncio.to_thread(
+                save_kg_to_supabase, self.supabase_client, self.kg
+            )
+        if self.persist_embeddings and self.supabase_client and results:
+            await asyncio.to_thread(
+                upsert_all_book_vectors, self.supabase_client, self.vector_store
+            )
 
         print(f"\n[OK] {len(results)}/{len(tasks)}권 등록 완료")
         print(f"     KG: {self.kg.summary()}")
@@ -349,6 +461,10 @@ class HybridRecommenderPipeline:
         self.kg.save(save_dir / "kg.pkl")
         self.vector_store.save(save_dir / "vectors.pkl")
         self.user_profile.save(save_dir / "user_profile.json")
+        if self.persist_kg and self.supabase_client:
+            save_kg_to_supabase(self.supabase_client, self.kg)
+        if self.persist_embeddings and self.supabase_client:
+            upsert_all_book_vectors(self.supabase_client, self.vector_store)
         print(f"[OK] 파이프라인 저장 완료: {save_dir}")
 
     def load(self, save_dir: str | Path) -> None:
@@ -384,4 +500,7 @@ class HybridRecommenderPipeline:
             "user_actions": self.user_profile.action_count,
             "user_unique_books": self.user_profile.unique_book_count,
             "profile_richness": round(self.user_profile.richness, 3),
+            "use_supabase": self.use_supabase,
+            "persist_kg": self.persist_kg,
+            "persist_embeddings": self.persist_embeddings,
         }

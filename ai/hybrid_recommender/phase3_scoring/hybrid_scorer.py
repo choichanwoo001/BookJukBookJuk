@@ -56,7 +56,7 @@ class HybridScorer:
     """하이브리드 추천 스코어링 엔진.
 
     Args:
-        kg_store: NetworkX 또는 Neo4j KG 저장소
+        kg_store: NetworkX KG 저장소
         vector_store: 책 단위 벡터 DB
         ripplenet_scorer: KG Ripple 점수 계산기
         alpha_min: α 최솟값 (콜드스타트 사용자)
