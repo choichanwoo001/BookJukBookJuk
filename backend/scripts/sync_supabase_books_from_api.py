@@ -1,7 +1,8 @@
-"""정보나루 loanItemSrch + 상세(srchDtlList) + 알라딘으로 섹터(0~9)별 N권 수집 후 Supabase books 전체 교체.
+"""정보나루 loanItemSrch + 상세(srchDtlList, ISBN당 1회) + 알라딘으로 섹터(0~9)별 N권 수집 후 Supabase books 전체 교체.
 
   - 기존 Supabase `books` 행은 삭제 후 upsert (로컬 JSON은 수정하지 않음)
   - 어린이·교육용 제외: `book_catalog_filters.should_keep_book`
+  - 시리즈물 제외(표제 키워드·만화로 보는·고믹·Why·권차·표제 내 총 N권 추정 등): `book_catalog_filters.explain_skip_series`
 
 필요 환경 변수 (터미널에서 설정하거나 저장소 루트 `.env`):
   LIBRARY_API_KEY   — 정보나루 (필수)
@@ -10,13 +11,18 @@
   SUPABASE_SERVICE_ROLE_KEY
 
 실행 (저장소 루트):
-  pip install -r backend/scripts/requirements-seed.txt
+  pip install -r requirements.txt
   python backend/scripts/sync_supabase_books_from_api.py
 
 옵션:
   --per-sector 50
   --dry-run       Supabase 쓰기 생략, 수집만 시험
   --max-pages 20  섹터당 loanItemSrch 최대 페이지(200권/페이지)
+  --quiet-skips   건너뛴 도서(필터/누락) 로그 끄기 (기본: ISBN별 사유를 stderr에 출력)
+
+문자열 길이:
+  DB 저장 직전 상한은 `book_catalog_db_limits.py` — 알라딘 TTB 응답을 가능한 그대로 보존하고,
+  비정상적으로 큰 페이로드만 차단한다. (설명·표지·출판일이 비는 주된 원인은 API 미제공이지 슬라이스가 아님.)
 """
 from __future__ import annotations
 
@@ -40,18 +46,34 @@ try:
 except ImportError:
     load_dotenv = None
 
-from book_catalog_filters import should_keep_book  # noqa: E402
+from book_catalog_db_limits import (  # noqa: E402
+    MAX_CHARS_ALADIN_COVER_URL,
+    MAX_CHARS_ALADIN_LONG_TEXT,
+    MAX_CHARS_ALADIN_MEDIUM_TEXT,
+    MAX_CHARS_ALADIN_PUB_DATE_RAW,
+    MAX_CHARS_KDC_CLASS_NM,
+    MAX_CHARS_KDC_CLASS_NO,
+    MAX_CHARS_PUBLISHED_YEAR,
+    MAX_CHARS_PUBLISHER,
+    clip,
+)
+from book_catalog_filters import (  # noqa: E402
+    explain_skip_content_filter,
+    explain_skip_series,
+)
 from taste_analysis.library_api import (  # noqa: E402
     BASE_URL,
-    fetch_book_details_batch,
+    fetch_book_detail,
     _get_api_error_message,
 )
 
 ALADIN_BASE = "https://www.aladin.co.kr/ttb/api"
 BATCH = 500
 INTER_PAGE_SEC = 1.0
+# 정보나루 srchDtlList: ISBN당 1회 호출 — 과도한 동시 요청 방지용(세마포어와 함께 사용)
+LIBRARY_DELAY_SEC = 0.12
 ALADIN_DELAY_SEC = 0.12
-DETAIL_CHUNK = 40
+
 KDC_NAMES = {
     0: "총류",
     1: "철학",
@@ -66,6 +88,21 @@ KDC_NAMES = {
 }
 
 
+def _log_skip(
+    sector: int,
+    isbn: str,
+    reason: str,
+    *,
+    title_hint: str = "",
+    quiet: bool = False,
+) -> None:
+    if quiet:
+        return
+    label = KDC_NAMES.get(sector, str(sector))
+    hint = f' | "{title_hint[:40]}..."' if len(title_hint) > 40 else (f' | "{title_hint}"' if title_hint else "")
+    print(f"  [건너뜀][{label}] ISBN {isbn} - {reason}{hint}", file=sys.stderr)
+
+
 def _load_env() -> None:
     if not load_dotenv:
         return
@@ -75,25 +112,27 @@ def _load_env() -> None:
 
 
 def row_for_db(obj: dict) -> dict:
+    """Supabase upsert 직전 정규화. 길이는 `book_catalog_db_limits` (알라딘·정보나루 응답 보존 우선)."""
     return {
         "id": str(obj.get("id", "")),
-        "title": (obj.get("title") or "")[:20000],
-        "authors": (obj.get("authors") or "")[:20000],
-        "description": (obj.get("description") or "")[:50000],
-        "author_bio": (obj.get("author_bio") or "")[:20000],
-        "editorial_review": (obj.get("editorial_review") or "")[:50000],
-        "publisher": (obj.get("publisher") or "")[:500],
-        "published_year": str(obj.get("published_year") or "")[:32],
-        "kdc_class_no": (obj.get("kdc_class_no") or "")[:64],
-        "kdc_class_nm": (obj.get("kdc_class_nm") or "")[:500],
+        "title": clip(obj.get("title"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "authors": clip(obj.get("authors"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "description": clip(obj.get("description"), MAX_CHARS_ALADIN_LONG_TEXT),
+        "author_bio": clip(obj.get("author_bio"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "editorial_review": clip(obj.get("editorial_review"), MAX_CHARS_ALADIN_LONG_TEXT),
+        "publisher": clip(obj.get("publisher"), MAX_CHARS_PUBLISHER),
+        "published_year": clip(str(obj.get("published_year") or ""), MAX_CHARS_PUBLISHED_YEAR),
+        "kdc_class_no": clip(obj.get("kdc_class_no"), MAX_CHARS_KDC_CLASS_NO),
+        "kdc_class_nm": clip(obj.get("kdc_class_nm"), MAX_CHARS_KDC_CLASS_NM),
         "sector": int(obj.get("sector") or 0),
-        "cover_image_url": (obj.get("cover_image_url") or "")[:2000],
+        "cover_image_url": clip(obj.get("cover_image_url"), MAX_CHARS_ALADIN_COVER_URL),
     }
 
 
-async def fetch_aladin_item(client: httpx.AsyncClient, api_key: str, isbn13: str) -> dict:
+async def fetch_aladin_item(client: httpx.AsyncClient, api_key: str, isbn13: str) -> tuple[dict, str | None]:
+    """알라딘 단권 조회. (item dict, 오류/빈 응답 설명) — 둘째가 None이면 정상."""
     if not api_key:
-        return {}
+        return {}, "ALADIN_API_KEY 없음"
     try:
         resp = await client.get(
             f"{ALADIN_BASE}/ItemLookUp.aspx",
@@ -109,65 +148,137 @@ async def fetch_aladin_item(client: httpx.AsyncClient, api_key: str, isbn13: str
         )
         resp.raise_for_status()
         data = resp.json()
-        items = data.get("item", [])
-        return items[0] if items else {}
-    except Exception:
-        return {}
+        raw = data.get("item")
+        # TTB는 결과 1건일 때 item이 dict, 복수일 때 list로 올 수 있음 — 전부 빈 메타로
+        # 저장되는 흔한 원인이 items[0]만 가정하는 것.
+        if raw is None:
+            return {}, "알라딘에 ISBN 미등록 또는 빈 응답"
+        if isinstance(raw, dict):
+            items = [raw]
+        elif isinstance(raw, list):
+            items = raw
+        else:
+            return {}, "알라딘 응답 item 형식 비정상"
+        if not items:
+            return {}, "알라딘에 ISBN 미등록 또는 빈 응답"
+        return items[0], None
+    except Exception as e:
+        return {}, f"알라딘 API 오류: {e!s}"[:400]
 
 
 def merge_library_aladin(
     sector: int,
     lib: dict,
     aladin: dict,
-) -> dict | None:
+) -> tuple[dict | None, str | None]:
+    """(행, None) 또는 (None, 건너뛴 이유)."""
     isbn = str(lib.get("isbn13") or "").strip()
     if not isbn:
-        return None
+        return None, "정보나루 상세에 ISBN 없음"
     title = (lib.get("title") or aladin.get("title") or "").strip()
     if not title:
-        return None
+        return None, "표제 없음 (정보나루·알라딘 모두)"
+    title = clip(title, MAX_CHARS_ALADIN_MEDIUM_TEXT)
+
     authors = (lib.get("authors") or aladin.get("author", "") or "").strip()
+    authors = clip(authors, MAX_CHARS_ALADIN_MEDIUM_TEXT)
+
     pub_lib = (lib.get("publisher") or "").strip()
     pub_ala = (aladin.get("publisher") or "").strip()
-    publisher = pub_lib or pub_ala
+    publisher = clip(pub_lib or pub_ala, MAX_CHARS_PUBLISHER)
 
-    description = (aladin.get("description") or "").strip()
-    author_bio_list = aladin.get("authorInfo", [])
-    if isinstance(author_bio_list, list):
-        author_bio = " ".join(
-            a.get("authorInfo", "") for a in author_bio_list if isinstance(a, dict)
-        )
-    else:
-        author_bio = str(aladin.get("authorInfoAdd") or "")
+    # 알라딘 ItemLookUp: 책 소개 전문 (공개 스펙에 최대 길이 없음 → LONG_TEXT 로만 상한)
+    description = clip((aladin.get("description") or "").strip(), MAX_CHARS_ALADIN_LONG_TEXT)
 
-    editorial_reviews = aladin.get("reviewList", []) or []
-    editorial_review = " ".join(
-        (r.get("reviewRank", "") or "") + " " + (r.get("reviewText", "") or "")
-        for r in editorial_reviews
-        if isinstance(r, dict)
-    )
+    sub_info = aladin.get("subInfo") if isinstance(aladin.get("subInfo"), dict) else {}
 
-    pub_date = aladin.get("pubDate") or ""
-    published_year = pub_date[:4] if pub_date else ""
+    # 알라딘 응답은 케이스에 따라 top-level / subInfo / 문자열·배열 형태가 섞여 온다.
+    author_bio_parts: list[str] = []
+    author_info_candidates = [
+        aladin.get("authorInfo"),
+        sub_info.get("authorInfo"),
+        aladin.get("authorInfoAdd"),
+        sub_info.get("authorInfoAdd"),
+    ]
+    for candidate in author_info_candidates:
+        if isinstance(candidate, str):
+            txt = candidate.strip()
+            if txt:
+                author_bio_parts.append(txt)
+        elif isinstance(candidate, dict):
+            txt = str(candidate.get("authorInfo") or candidate.get("info") or "").strip()
+            if txt:
+                author_bio_parts.append(txt)
+        elif isinstance(candidate, list):
+            for entry in candidate:
+                if isinstance(entry, str):
+                    txt = entry.strip()
+                elif isinstance(entry, dict):
+                    txt = str(entry.get("authorInfo") or entry.get("info") or "").strip()
+                else:
+                    txt = ""
+                if txt:
+                    author_bio_parts.append(txt)
+    author_bio = clip(" ".join(author_bio_parts).strip(), MAX_CHARS_ALADIN_MEDIUM_TEXT)
+
+    review_candidates = [
+        aladin.get("reviewList"),
+        sub_info.get("reviewList"),
+        aladin.get("story"),
+        sub_info.get("story"),
+    ]
+    review_parts: list[str] = []
+    for candidate in review_candidates:
+        if isinstance(candidate, str):
+            txt = candidate.strip()
+            if txt:
+                review_parts.append(txt)
+            continue
+        if not isinstance(candidate, list):
+            continue
+        for entry in candidate:
+            if isinstance(entry, str):
+                txt = entry.strip()
+            elif isinstance(entry, dict):
+                txt = " ".join(
+                    t for t in [
+                        str(entry.get("reviewText") or "").strip(),
+                        str(entry.get("story") or "").strip(),
+                        str(entry.get("oneLineReview") or "").strip(),
+                    ] if t
+                )
+            else:
+                txt = ""
+            if txt:
+                review_parts.append(txt)
+    editorial_review = clip(" ".join(review_parts).strip(), MAX_CHARS_ALADIN_LONG_TEXT)
+
+    # pubDate → DB에는 연도 4자리만 (손실 없이 일반적인 API 형식만 가정)
+    pub_date_raw = clip(str(aladin.get("pubDate") or "").strip(), MAX_CHARS_ALADIN_PUB_DATE_RAW)
+    published_year = pub_date_raw[:4] if pub_date_raw else ""
 
     cover = aladin.get("cover") or aladin.get("coverUrl") or ""
     if isinstance(cover, dict):
         cover = cover.get("url", "") or ""
+    cover_url = clip(str(cover), MAX_CHARS_ALADIN_COVER_URL) if cover else ""
 
-    return {
-        "id": isbn,
-        "title": title,
-        "authors": authors,
-        "description": description,
-        "author_bio": author_bio.strip(),
-        "editorial_review": editorial_review.strip(),
-        "publisher": publisher,
-        "published_year": published_year,
-        "kdc_class_no": (lib.get("class_no") or "")[:64],
-        "kdc_class_nm": (lib.get("class_nm") or "")[:500],
-        "sector": sector,
-        "cover_image_url": str(cover)[:2000] if cover else "",
-    }
+    return (
+        {
+            "id": isbn,
+            "title": title,
+            "authors": authors,
+            "description": description,
+            "author_bio": author_bio,
+            "editorial_review": editorial_review,
+            "publisher": publisher,
+            "published_year": published_year,
+            "kdc_class_no": clip(lib.get("class_no") or "", MAX_CHARS_KDC_CLASS_NO),
+            "kdc_class_nm": clip(lib.get("class_nm") or "", MAX_CHARS_KDC_CLASS_NM),
+            "sector": sector,
+            "cover_image_url": cover_url,
+        },
+        None,
+    )
 
 
 async def fetch_loan_page(
@@ -213,6 +324,7 @@ async def collect_sector(
     max_pages: int,
     seen_global: set[str],
     sem: asyncio.Semaphore,
+    quiet_skips: bool,
 ) -> list[dict]:
     """섹터당 target권(필터 통과) 수집."""
     out: list[dict] = []
@@ -226,43 +338,51 @@ async def collect_sector(
         if not isbns:
             break
 
-        fresh = [i for i in isbns if i not in seen_global]
-        for start in range(0, len(fresh), DETAIL_CHUNK):
-            chunk = fresh[start : start + DETAIL_CHUNK]
-            if not chunk:
+        task_isbns = [i for i in isbns if i not in seen_global]
+        if not task_isbns:
+            page += 1
+            await asyncio.sleep(INTER_PAGE_SEC)
+            continue
+
+        async def one(isbn: str) -> tuple[dict | None, str | None]:
+            async with sem:
+                await asyncio.sleep(LIBRARY_DELAY_SEC)
+                try:
+                    lib = await fetch_book_detail(client, library_key, isbn)
+                except Exception as e:
+                    return None, f"정보나루 상세(srchDtlList) 오류: {e!s}"[:220]
+                await asyncio.sleep(ALADIN_DELAY_SEC)
+                aladin, aladin_note = await fetch_aladin_item(client, aladin_key, isbn)
+                row, merge_note = merge_library_aladin(sector, lib, aladin)
+                if merge_note:
+                    extra = f" ({aladin_note})" if aladin_note else ""
+                    return None, merge_note + extra
+                assert row is not None
+                skip_c = explain_skip_content_filter(row)
+                if skip_c:
+                    return None, skip_c
+                skip_s = explain_skip_series(aladin, row)
+                if skip_s:
+                    return None, skip_s
+                return row, None
+
+        results = await asyncio.gather(*[one(isbn) for isbn in task_isbns])
+        for isbn, (r, skip_reason) in zip(task_isbns, results):
+            if skip_reason is not None:
+                _log_skip(sector, isbn, skip_reason, quiet=quiet_skips)
                 continue
-            details = await fetch_book_details_batch(client, library_key, chunk)
-            by_isbn = {str(d.get("isbn13", "")).strip(): d for d in details if d.get("isbn13")}
-
-            async def one(isbn: str) -> dict | None:
-                async with sem:
-                    await asyncio.sleep(ALADIN_DELAY_SEC)
-                    lib = by_isbn.get(isbn)
-                    if not lib:
-                        return None
-                    aladin = await fetch_aladin_item(client, aladin_key, isbn)
-                    row = merge_library_aladin(sector, lib, aladin)
-                    if not row:
-                        return None
-                    if not should_keep_book(row):
-                        return None
-                    return row
-
-            tasks = [one(isbn) for isbn in chunk if isbn in by_isbn and isbn not in seen_global]
-            results = await asyncio.gather(*tasks)
-            for r in results:
-                if r is None:
-                    continue
-                iid = str(r["id"])
-                if iid in seen_global:
-                    continue
-                seen_global.add(iid)
-                out.append(r)
-                tit = r["title"] or ""
-                tshow = (tit[:42] + "…") if len(tit) > 42 else tit
-                print(f"  [{KDC_NAMES.get(sector, sector)}] {len(out)}/{target} ISBN {iid} — {tshow}")
-                if len(out) >= target:
-                    return out[:target]
+            if r is None:
+                continue
+            iid = str(r["id"])
+            if iid in seen_global:
+                continue
+            seen_global.add(iid)
+            out.append(r)
+            tit = r["title"] or ""
+            tshow = (tit[:42] + "...") if len(tit) > 42 else tit
+            print(f"  [{KDC_NAMES.get(sector, sector)}] {len(out)}/{target} ISBN {iid} - {tshow}")
+            if len(out) >= target:
+                return out[:target]
 
         page += 1
         await asyncio.sleep(INTER_PAGE_SEC)
@@ -284,7 +404,7 @@ async def run_async(args: argparse.Namespace) -> list[dict]:
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for sector in range(10):
-            print(f"\n=== 섹터 {sector} ({KDC_NAMES[sector]}) — 목표 {args.per_sector}권 ===")
+            print(f"\n=== 섹터 {sector} ({KDC_NAMES[sector]}) - 목표 {args.per_sector}권 ===")
             rows = await collect_sector(
                 client,
                 library_key,
@@ -294,6 +414,7 @@ async def run_async(args: argparse.Namespace) -> list[dict]:
                 args.max_pages,
                 seen,
                 sem,
+                args.quiet_skips,
             )
             all_rows.extend(rows)
             if len(rows) < args.per_sector:
@@ -307,11 +428,22 @@ async def run_async(args: argparse.Namespace) -> list[dict]:
 
 def main() -> int:
     _load_env()
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
     ap = argparse.ArgumentParser(description="정보나루+알라딘으로 Supabase books 재구축")
     ap.add_argument("--per-sector", type=int, default=50, help="KDC 섹터(0~9)당 권수 (기본 50)")
     ap.add_argument("--max-pages", type=int, default=25, help="섹터당 loanItemSrch 최대 페이지")
     ap.add_argument("--dry-run", action="store_true", help="Supabase 삭제/upsert 생략")
+    ap.add_argument(
+        "--quiet-skips",
+        action="store_true",
+        help="건너뛴 도서(필터/누락) 로그 끄기 — 기본은 ISBN별 사유 출력",
+    )
     args = ap.parse_args()
 
     url = (os.environ.get("SUPABASE_URL") or "").strip()
@@ -331,11 +463,11 @@ def main() -> int:
     try:
         from supabase import create_client
     except ImportError:
-        print("pip install -r backend/scripts/requirements-seed.txt", file=sys.stderr)
+        print("pip install -r requirements.txt", file=sys.stderr)
         return 1
 
     client = create_client(url, key)
-    print("Supabase books 기존 데이터 삭제 중…")
+    print("Supabase books 기존 데이터 삭제 중...")
     try:
         client.table("books").delete().gte("sector", 0).execute()
     except Exception as e:

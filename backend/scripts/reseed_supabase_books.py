@@ -6,7 +6,7 @@
   - KDC 섹터 0~9 각각 최대 --per-sector 권 (기본 50)
 
 사전 준비:
-  pip install -r backend/scripts/requirements-seed.txt
+  pip install -r requirements.txt
 
 환경 변수 (민감값은 직접 설정):
   SUPABASE_URL
@@ -34,6 +34,16 @@ _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
+from book_catalog_db_limits import (
+    MAX_CHARS_ALADIN_COVER_URL,
+    MAX_CHARS_ALADIN_LONG_TEXT,
+    MAX_CHARS_ALADIN_MEDIUM_TEXT,
+    MAX_CHARS_KDC_CLASS_NM,
+    MAX_CHARS_KDC_CLASS_NO,
+    MAX_CHARS_PUBLISHED_YEAR,
+    MAX_CHARS_PUBLISHER,
+    clip,
+)
 from book_catalog_filters import pick_per_sector, should_keep_book
 
 REPO = _SCRIPTS.parent.parent
@@ -50,19 +60,20 @@ def _load_env() -> None:
 
 
 def row_for_db(obj: dict) -> dict:
+    """필터·섹터 상한 적용 후 upsert. 길이는 `book_catalog_db_limits` (알라딘 기준과 sync 동일)."""
     return {
         "id": str(obj.get("id", "")),
-        "title": (obj.get("title") or "")[:20000],
-        "authors": (obj.get("authors") or "")[:20000],
-        "description": (obj.get("description") or "")[:50000],
-        "author_bio": (obj.get("author_bio") or "")[:20000],
-        "editorial_review": (obj.get("editorial_review") or "")[:50000],
-        "publisher": (obj.get("publisher") or "")[:500],
-        "published_year": str(obj.get("published_year") or "")[:32],
-        "kdc_class_no": (obj.get("kdc_class_no") or "")[:64],
-        "kdc_class_nm": (obj.get("kdc_class_nm") or "")[:500],
+        "title": clip(obj.get("title"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "authors": clip(obj.get("authors"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "description": clip(obj.get("description"), MAX_CHARS_ALADIN_LONG_TEXT),
+        "author_bio": clip(obj.get("author_bio"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "editorial_review": clip(obj.get("editorial_review"), MAX_CHARS_ALADIN_LONG_TEXT),
+        "publisher": clip(obj.get("publisher"), MAX_CHARS_PUBLISHER),
+        "published_year": clip(str(obj.get("published_year") or ""), MAX_CHARS_PUBLISHED_YEAR),
+        "kdc_class_no": clip(obj.get("kdc_class_no"), MAX_CHARS_KDC_CLASS_NO),
+        "kdc_class_nm": clip(obj.get("kdc_class_nm"), MAX_CHARS_KDC_CLASS_NM),
         "sector": int(obj.get("sector") or 0),
-        "cover_image_url": (obj.get("cover_image_url") or "")[:2000],
+        "cover_image_url": clip(obj.get("cover_image_url"), MAX_CHARS_ALADIN_COVER_URL),
     }
 
 
@@ -130,7 +141,7 @@ def main() -> int:
     try:
         from supabase import create_client
     except ImportError:
-        print("Install: pip install -r backend/scripts/requirements-seed.txt", file=sys.stderr)
+        print("Install: pip install -r requirements.txt", file=sys.stderr)
         return 1
 
     client = create_client(url, key)

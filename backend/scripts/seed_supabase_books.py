@@ -1,7 +1,7 @@
 """booksCatalog.json(또는 export 스크립트 결과)을 Supabase public.books 에 upsert 합니다.
 
 사전 준비:
-  pip install supabase python-dotenv
+  pip install -r requirements.txt
 
 환경 변수 (터미널에 직접 설정하거나, 다른 스크립트와 같이 저장소 루트 `.env`에 두는 방식):
   SUPABASE_URL
@@ -18,29 +18,48 @@ import os
 import sys
 from pathlib import Path
 
+from book_catalog_db_limits import (
+    MAX_CHARS_ALADIN_COVER_URL,
+    MAX_CHARS_ALADIN_LONG_TEXT,
+    MAX_CHARS_ALADIN_MEDIUM_TEXT,
+    MAX_CHARS_KDC_CLASS_NM,
+    MAX_CHARS_KDC_CLASS_NO,
+    MAX_CHARS_PUBLISHED_YEAR,
+    MAX_CHARS_PUBLISHER,
+    clip,
+)
+
 REPO = Path(__file__).resolve().parent.parent.parent
 DEFAULT_JSON = REPO / "frontend" / "src" / "data" / "booksCatalog.json"
 BATCH = 500
 
 
 def row_for_db(obj: dict) -> dict:
+    """로컬 JSON → Supabase upsert. 문자열 상한은 `book_catalog_db_limits` (sync·reseed 와 동일)."""
     return {
         "id": str(obj.get("id", "")),
-        "title": (obj.get("title") or "")[:20000],
-        "authors": (obj.get("authors") or "")[:20000],
-        "description": (obj.get("description") or "")[:50000],
-        "author_bio": (obj.get("author_bio") or "")[:20000],
-        "editorial_review": (obj.get("editorial_review") or "")[:50000],
-        "publisher": (obj.get("publisher") or "")[:500],
-        "published_year": str(obj.get("published_year") or "")[:32],
-        "kdc_class_no": (obj.get("kdc_class_no") or "")[:64],
-        "kdc_class_nm": (obj.get("kdc_class_nm") or "")[:500],
+        "title": clip(obj.get("title"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "authors": clip(obj.get("authors"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "description": clip(obj.get("description"), MAX_CHARS_ALADIN_LONG_TEXT),
+        "author_bio": clip(obj.get("author_bio"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
+        "editorial_review": clip(obj.get("editorial_review"), MAX_CHARS_ALADIN_LONG_TEXT),
+        "publisher": clip(obj.get("publisher"), MAX_CHARS_PUBLISHER),
+        "published_year": clip(str(obj.get("published_year") or ""), MAX_CHARS_PUBLISHED_YEAR),
+        "kdc_class_no": clip(obj.get("kdc_class_no"), MAX_CHARS_KDC_CLASS_NO),
+        "kdc_class_nm": clip(obj.get("kdc_class_nm"), MAX_CHARS_KDC_CLASS_NM),
         "sector": int(obj.get("sector") or 0),
-        "cover_image_url": (obj.get("cover_image_url") or "")[:2000],
+        "cover_image_url": clip(obj.get("cover_image_url"), MAX_CHARS_ALADIN_COVER_URL),
     }
 
 
 def main() -> int:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(REPO / ".env")
+    except ImportError:
+        pass
+
     try:
         from supabase import create_client
     except ImportError:

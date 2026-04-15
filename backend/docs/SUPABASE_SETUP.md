@@ -41,7 +41,7 @@ Python 시드·동기화 스크립트는 **저장소 루트 `.env`**에 `SUPABAS
 저장소 루트에서 (또는 가상환경에서):
 
 ```bash
-pip install -r backend/scripts/requirements-seed.txt
+pip install -r requirements.txt
 ```
 
 PowerShell 예시 (값은 본인 프로젝트로 교체):
