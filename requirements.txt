@@ -12,7 +12,7 @@ requests>=2.31.0
 # Supabase 시드·동기화 스크립트
 supabase>=2.10.0
 
-# AI (taste_analysis, book_chat, hybrid_recommender)
+# AI (library_api, book_chat, hybrid_recommender)
 openai>=1.0.0
 numpy>=1.26.0
 scikit-learn>=1.4.0

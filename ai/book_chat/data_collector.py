@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import httpx
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from taste_analysis.library_api import fetch_book_detail, fetch_keywords, BookKeyword
+from library_api import fetch_book_detail, fetch_keywords, BookKeyword
 
 ALADIN_BASE = "https://www.aladin.co.kr/ttb/api"
 _WIKI_403_WARNED = False
