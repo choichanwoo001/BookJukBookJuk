@@ -31,10 +31,7 @@ No linter, formatter, or test runner is configured for the frontend.
 pip install -r requirements.txt
 cd ai
 
-# Taste analysis
-python main.py --random
-python main.py 9788937460470 9788936434120
-python main.py --compare   # K-means vs DBSCAN
+# 레거시 클러스터링 기반 취향 분석 CLI는 제거됨. 요약: docs/legacy_taste_analysis.md
 
 # Book Q&A chat
 python book_chat_main.py --isbn 9788937460470
@@ -50,7 +47,7 @@ No test suite or linter is configured for the AI modules.
 
 ### Required Environment Variables (see repository root `.env.example`)
 - `OPENAI_API_KEY` — Required by all AI modules
-- `LIBRARY_API_KEY` — 정보나루 Korean Library API (taste analysis, recommender)
+- `LIBRARY_API_KEY` — 정보나루 Korean Library API (book chat, recommender, 시드 스크립트)
 - `ALADIN_API_KEY` — Aladin TTB book metadata API (book chat)
 - `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (or anon where appropriate) — Book metadata / hybrid recommender `HYBRID_USE_SUPABASE`; `HYBRID_PERSIST_KG=1` → KG tables + (by default) `HYBRID_PERSIST_EMBEDDINGS` → `book_vectors` upsert/load
 - `PINECONE_API_KEY/PINECONE_INDEX_NAME` — Optional; falls back to numpy in-memory vectors
@@ -59,19 +56,21 @@ No test suite or linter is configured for the AI modules.
 
 ### Integration Status
 
-Frontend and AI backend are **not yet connected**. The frontend uses hardcoded mock data (`frontend/src/data/dummyBooks.js`); chat pages return regex-matched stub responses. The AI modules are standalone CLI tools with no HTTP server. Connecting them will require an API server layer (e.g., FastAPI) and wiring the React pages to real endpoints.
+`backend/main.py` (FastAPI): `GET /api/book-cover`, `GET /api/recommendations` (하이브리드 파이프라인; Supabase KG·벡터·사용자 이력 필요). Vite dev는 `/api`를 백엔드로 프록시. 홈 「취향 저격」행은 성공 시 이 API로 채우고, 실패 시 `dummyBooks` 폴백.
+
+채팅·기타 화면은 여전히 mock/스텁이 많음.
 
 ### Frontend (`frontend/src/`)
 React SPA with React Router v6 (`App.jsx` defines all routes). State management via React hooks only (no Redux/Context). Pages: Home, Library, MyPage, BookDetail, BookChat, Search, Login, CollectionDetail, TasteAnalysisDetail, CommentDetail. `MyChat.jsx` is the Paige chatbot on MyPage; `BookChat.jsx` is the book-specific Q&A page. Uses Leaflet (`react-leaflet`) for bookstore maps.
 
 ### AI Backend (`ai/`)
-Three independent Python modules, each runnable standalone. Core deps: OpenAI (gpt-4o-mini / gpt-4o), LangChain, PyTorch (RippleNet GNN), scikit-learn, NetworkX.
+Core deps: OpenAI (gpt-4o-mini / gpt-4o), LangChain, PyTorch (RippleNet GNN), scikit-learn, NetworkX.
 
-1. **Taste Analysis** (`taste_analysis/`, entry: `main.py`) — Fetches books from 정보나루, embeds keywords via OpenAI, clusters with K-means or DBSCAN, then generates an LLM prose analysis of reading preferences.
+1. **library_api** (`library_api/`) — 정보나루(data4library.kr) 도서·키워드 API (book_chat, hybrid, 시드 스크립트에서 사용).
 
 2. **Book Chat** (`book_chat/`, entry: `book_chat_main.py`) — Hybrid retrieval QA for a specific book. Pipeline: `data_collector` → `graph_builder` (KG) + `vector_store` (embeddings) → `retriever` (graph + vector blend) → `chat_engine` (LLM with relevance guard).
 
-3. **Hybrid Recommender** (`hybrid_recommender/`, entry: `hybrid_recommender_main.py`) — 4-phase pipeline:
+3. **Hybrid Recommender** (`hybrid_recommender/`, entry: `hybrid_recommender_main.py`, HTTP는 `backend/main.py`) — 4-phase pipeline:
    - Phase 1 (`phase1_kg/`): LLM entity extraction → KG build (NetworkX in-memory) → noise filter; optional `HYBRID_PERSIST_KG` → `kg_nodes`/`kg_edges`; book metadata via `HYBRID_USE_SUPABASE`
    - Phase 2 (`phase2_model/`): OpenAI embeddings + RippleNet GNN, cold-start handling, Pinecone or numpy storage
    - Phase 3 (`phase3_scoring/`): User profile tracking, hybrid score = α·Graph + (1-α)·Vector with time decay

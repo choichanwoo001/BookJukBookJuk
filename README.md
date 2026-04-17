@@ -178,7 +178,8 @@ var(--font-size-3xl)   /* 22px */
 
 ### 현재 상태 및 다음 작업
 
-- **프론트 ↔ AI 백엔드 미연결:** 모든 데이터는 mock. 연결하려면 FastAPI 서버 레이어 필요
+- **홈 「OO님의 취향 저격」:** 백엔드 `GET /api/recommendations`가 성공하면 하이브리드 추천 목록으로 채움(실패 시 기존 mock 폴백). 백엔드 실행·Supabase KG/벡터 시드 필요.
+- **그 외 화면:** 대부분 mock. FastAPI는 표지 프록시·추천 외 확장 가능
 - `BookChat.jsx`, `MyChat.jsx`의 mock 응답 함수를 실제 API 호출로 교체해야 함
 - `dummyBooks.js`를 실제 API 응답으로 대체해야 함
 - Paige 에이전트 구현 예정 (`ai/paigee/` 참고)
