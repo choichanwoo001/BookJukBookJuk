@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Navigate, Link } from 'react-router-dom'
-import { getBookById } from '../data/dummyBooks'
 import StoreMap from '../components/StoreMap'
 import PopularComments from '../components/PopularComments'
 import { useTab } from '../hooks/useTab'
 import { CHARACTER_IMG } from '../data/constants'
 import { pickFallbackCoverById } from '../data/coverUrl'
+import { fetchBookComments, fetchBookDetail } from '../data/bookApi'
 import './BookDetail.css'
 
 function BookDetail() {
@@ -14,12 +14,38 @@ function BookDetail() {
   const [userStars, setUserStars] = useState(0)
   const [showFullDesc, setShowFullDesc] = useState(false)
   const { activeTab, setActiveTab } = useTab('story')
+  const [book, setBook] = useState(null)
+  const [comments, setComments] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const book = useMemo(() => getBookById(id ?? ''), [id])
+  useEffect(() => {
+    let cancelled = false
+    if (!id) return undefined
+    setIsLoading(true)
+    Promise.all([fetchBookDetail(id), fetchBookComments(id, 20)])
+      .then(([bookData, commentsData]) => {
+        if (cancelled) return
+        setBook(bookData)
+        setComments(Array.isArray(commentsData.items) ? commentsData.items : [])
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBook(null)
+        setComments([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id])
 
-  if (!book) {
+  if (!book && !isLoading) {
     return <Navigate to="/" replace />
   }
+  if (!book) return null
 
   const avgRating = typeof book.rating === 'number' ? book.rating.toFixed(1) : String(book.rating)
 
@@ -192,15 +218,19 @@ function BookDetail() {
 
         <section className="book-detail-section">
           <PopularComments
-            comments={book.popularComments}
+            comments={comments}
             avgRating={book.rating}
-            onCommentClick={(i) => navigate(`/book/${id}/comment/${i}`)}
+            onCommentClick={(i) => {
+              const comment = comments[i]
+              if (!comment?.id) return
+              navigate(`/book/${id}/comment/${comment.id}`)
+            }}
           />
         </section>
 
         <section className="book-detail-section book-detail-section-map">
           <h2 className="book-detail-section-title">구매 가능한 근처 매장</h2>
-          <StoreMap key={book.id} center={book.storeLocation} />
+          <StoreMap key={book.id} center={book.storeLocation || { lat: 37.5665, lng: 126.978 }} />
         </section>
 
         <div className="book-detail-bottom-spacer" />

@@ -1,8 +1,8 @@
 import { useParams, Navigate } from 'react-router-dom'
 import BackButton from '../components/BackButton'
-import { useState } from 'react'
-import { getCommentById } from '../data/dummyBooks'
+import { useEffect, useState } from 'react'
 import { pickImageBySeed } from '../data/imagePool'
+import { fetchBookCommentDetail, fetchBookDetail } from '../data/bookApi'
 import './CommentDetail.css'
 
 const PROFILE_PLACEHOLDER = pickImageBySeed(103)
@@ -10,14 +10,38 @@ const PROFILE_PLACEHOLDER = pickImageBySeed(103)
 function CommentDetail() {
   const { id, commentId } = useParams()
   const [replyInput, setReplyInput] = useState('')
+  const [book, setBook] = useState(null)
+  const [comment, setComment] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const data = getCommentById(id ?? '', commentId ?? '')
+  useEffect(() => {
+    let cancelled = false
+    if (!id || !commentId) return undefined
+    setIsLoading(true)
+    Promise.all([fetchBookDetail(id), fetchBookCommentDetail(id, commentId)])
+      .then(([bookData, commentData]) => {
+        if (cancelled) return
+        setBook(bookData)
+        setComment(commentData.item || null)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBook(null)
+        setComment(null)
+      })
+      .finally(() => {
+        if (cancelled) return
+        setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, commentId])
 
-  if (!data) {
+  if (!isLoading && (!book || !comment)) {
     return <Navigate to={`/book/${id}`} replace />
   }
-
-  const { book, comment } = data
+  if (!book || !comment) return null
 
   return (
     <div className="comment-detail-page">
@@ -70,7 +94,7 @@ function CommentDetail() {
 
         <p className="comment-detail-text">{comment.text}</p>
         
-        <p className="comment-detail-read-date">2026년 03월 20일에 봄</p>
+        <p className="comment-detail-read-date">{comment.createdAt || '-'}</p>
 
         <div className="comment-detail-actions-container">
           <div className="comment-detail-actions">

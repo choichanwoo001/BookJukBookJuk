@@ -1,16 +1,36 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { pickImageBySeed } from '../data/imagePool'
 import { pickFallbackCoverById } from '../data/coverUrl'
-import { SECTIONS } from '../data/dummyBooks'
+import { fetchUserCollections } from '../data/bookApi'
 import './My.css'
 
 function My() {
   const navigate = useNavigate()
-  const collections = SECTIONS.map((section) => ({
-    id: section.id,
-    title: section.title,
-    books: section.books.slice(0, 4),
-  }))
+  const [collections, setCollections] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchUserCollections('dev_user_1')
+      .then((data) => {
+        if (cancelled) return
+        const items = Array.isArray(data.items) ? data.items : []
+        setCollections(
+          items.map((item) => ({
+            id: item.id,
+            title: item.title,
+            books: Array.isArray(item.books) ? item.books.slice(0, 4) : [],
+          })),
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCollections([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="my-page">

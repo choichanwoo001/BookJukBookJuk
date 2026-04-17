@@ -1,10 +1,36 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BookSection from '../components/BookSection'
-import { SECTIONS } from '../data/dummyBooks'
+import { fetchHomeSections } from '../data/bookApi'
 import './Home.css'
 
 function Home() {
   const navigate = useNavigate()
+  const [sectionsData, setSectionsData] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setIsLoading(true)
+    fetchHomeSections(4)
+      .then((data) => {
+        if (cancelled) return
+        setSectionsData(Array.isArray(data.items) ? data.items : [])
+      })
+      .catch(() => {
+        if (cancelled) return
+        setSectionsData([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const sections = useMemo(() => sectionsData, [sectionsData])
 
   return (
     <div className="home-page">
@@ -23,7 +49,10 @@ function Home() {
       </header>
 
       <main className="home-content">
-        {SECTIONS.map((section) => (
+        {!isLoading && sections.length === 0 && (
+          <p className="empty-message">표시할 책 데이터가 없습니다.</p>
+        )}
+        {sections.map((section) => (
           <BookSection key={section.id} section={section} />
         ))}
         <div className="content-spacer" />

@@ -1,9 +1,10 @@
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getBookById } from '../data/dummyBooks'
 import { Navigate } from 'react-router-dom'
 import { CHARACTER_IMG } from '../data/constants'
 import BackButton from '../components/BackButton'
 import { useChat } from '../hooks/useChat'
+import { fetchBookDetail } from '../data/bookApi'
 import './BookChat.css'
 
 /** 책 정보를 바탕으로 캐릭터의 목업 응답을 생성합니다. */
@@ -124,11 +125,35 @@ function BookChatInner({ book, id }) {
 
 function BookChat() {
   const { id } = useParams()
-  const book = getBookById(id ?? '')
+  const [book, setBook] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  if (!book) {
+  useEffect(() => {
+    let cancelled = false
+    if (!id) return undefined
+    setIsLoading(true)
+    fetchBookDetail(id)
+      .then((data) => {
+        if (cancelled) return
+        setBook(data)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBook(null)
+      })
+      .finally(() => {
+        if (cancelled) return
+        setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  if (!book && !isLoading) {
     return <Navigate to="/" replace />
   }
+  if (!book) return null
 
   return <BookChatInner book={book} id={id} />
 }

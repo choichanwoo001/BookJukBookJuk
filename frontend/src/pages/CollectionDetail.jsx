@@ -1,35 +1,53 @@
+import { useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import BookCard from '../components/BookCard'
 import PopularComments from '../components/PopularComments'
 import BackButton from '../components/BackButton'
-import { SECTIONS } from '../data/dummyBooks'
+import { fetchCollectionDetail } from '../data/bookApi'
 import './CollectionDetail.css'
 
 function CollectionDetail() {
   const { sectionId } = useParams()
-  const section = SECTIONS.find((item) => item.id === sectionId)
-  const likeCount = 600 + section.books.length * 17
-  const comments = [
-    { userName: 'C♥', text: '올려주시는 컬렉션 항상 잘 보고 있어요.', likeCount: 2, replyCount: 1, rating: 4, createdAt: '8년 전' },
-    { userName: '가브리엘', text: '감사합니다!', likeCount: 2, replyCount: 0, rating: 3.5, createdAt: '8년 전' },
-    { userName: '책벌레', text: '표지만큼 내용도 좋았어요. 다음 작품도 기대돼요.', likeCount: 12, replyCount: 0, rating: 4 },
-  ]
+  const [collection, setCollection] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  if (!section) return <Navigate to="/my" replace />
+  useEffect(() => {
+    let cancelled = false
+    if (!sectionId) return undefined
+    setIsLoading(true)
+    fetchCollectionDetail(sectionId)
+      .then((data) => {
+        if (cancelled) return
+        setCollection(data.item || null)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCollection(null)
+      })
+      .finally(() => {
+        if (cancelled) return
+        setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sectionId])
+
+  if (!isLoading && !collection) return <Navigate to="/my" replace />
+  if (!collection) return null
 
   return (
     <div className="collection-detail-page">
       <header className="collection-detail-header">
         <BackButton className="collection-detail-back-btn" />
-        <h1 className="collection-detail-title">{section.title}</h1>
+        <h1 className="collection-detail-title">{collection.title}</h1>
       </header>
 
       <main className="collection-detail-content">
         <section className="collection-detail-description">
           <h2 className="collection-detail-section-title">컬렉션 소개</h2>
           <p className="collection-detail-description-text">
-            {section.title} 주제로 모은 책 리스트입니다. 관심 있는 책부터 골라서 상세 페이지에서 코멘트와
-            별점을 확인해 보세요.
+            {collection.description || `${collection.title} 주제로 모은 책 리스트입니다.`}
           </p>
         </section>
 
@@ -60,15 +78,15 @@ function CollectionDetail() {
         </section>
 
         <div className="collection-detail-meta-row">
-          <p className="collection-detail-like-count">좋아요 {likeCount}개</p>
+          <p className="collection-detail-like-count">좋아요 {collection.likeCount || 0}개</p>
         </div>
 
         <section className="collection-detail-works">
           <h2 className="collection-detail-section-title">
-            작품들 <span>{section.books.length}</span>
+            작품들 <span>{collection.books?.length || 0}</span>
           </h2>
           <div className="collection-detail-grid">
-            {section.books.map((book) => (
+            {(collection.books || []).map((book) => (
               <BookCard key={book.id} book={book} variant="grid" />
             ))}
           </div>
@@ -79,7 +97,7 @@ function CollectionDetail() {
             title="댓글"
             showCount={false}
             showSummary={false}
-            comments={comments}
+            comments={collection.comments || []}
             onCommentClick={() => {}}
           />
         </section>

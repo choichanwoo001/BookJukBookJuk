@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
-import { ALL_BOOKS } from '../data/dummyBooks'
+import { fetchBooksSearch } from '../data/bookApi'
 import './Search.css'
 
 const TABS = [
@@ -15,22 +15,30 @@ function Search() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const { activeTab, setActiveTab } = useTab('book')
+  const [bookResults, setBookResults] = useState([])
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return []
-
-    if (activeTab === 'book') {
-      return ALL_BOOKS.filter(
-        (b) =>
-          b.title.toLowerCase().includes(q) ||
-          (b.authors && b.authors.toLowerCase().includes(q))
-      )
+  useEffect(() => {
+    let cancelled = false
+    const q = query.trim()
+    if (!q || activeTab !== 'book') {
+      setBookResults([])
+      return undefined
     }
-
-    // 작가/컬렉션/유저는 추후 API 연동 시 구현
-    return []
+    fetchBooksSearch(q, 30)
+      .then((data) => {
+        if (cancelled) return
+        setBookResults(Array.isArray(data.items) ? data.items : [])
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBookResults([])
+      })
+    return () => {
+      cancelled = true
+    }
   }, [query, activeTab])
+
+  const results = useMemo(() => bookResults, [bookResults])
 
   const showResults = query.trim().length > 0
 
