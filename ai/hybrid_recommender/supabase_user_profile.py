@@ -1,6 +1,7 @@
 """Supabase `ratings` / `shelves`+`shelf_books` / `book_user_states` → `UserProfile`.
 
-`users."Key"`, `ratings."Key"`, `shelves.user_id`, `book_user_states."Key2"` 는 동일한 사용자 식별 문자열을 쓴다고 가정한다.
+레거시: `users."Key"`, `ratings."Key"`, `shelves.user_id`, `book_user_states."Key2"`.
+재구성 스키마: `users_id` / `books_id` / `shelves_id` 등 — 동일 사용자 식별 문자열을 쓴다고 가정한다.
 """
 from __future__ import annotations
 
@@ -49,6 +50,19 @@ def _shelf_type_to_action(shelf_type: str) -> ActionType | None:
     }.get(shelf_type)
 
 
+def _first_eq_query(supabase: Any, table: str, uid: str, user_columns: tuple[str, ...]) -> Any | None:
+    """PostgREST 컬럼명(따옴표 포함)·스키마 차이를 흡수한다."""
+    last_err: Exception | None = None
+    for col in user_columns:
+        try:
+            return supabase.table(table).select("*").eq(col, uid).execute()
+        except Exception as e:
+            last_err = e
+    if last_err:
+        print(f"[WARN] {table} 조회 실패: {last_err}")
+    return None
+
+
 def _book_state_to_action(state: str) -> ActionType | None:
     return {
         "LIST": ActionType.WISHLIST,
@@ -94,15 +108,16 @@ def load_user_profile_from_supabase(supabase: Any, user_id: str) -> UserProfile:
     events: list[tuple[datetime, UserAction]] = []
 
     # --- ratings ---
-    try:
-        rres = supabase.table("ratings").select("*").eq("Key", uid).execute()
-    except Exception as e:
-        print(f"[WARN] ratings 조회 실패: {e}")
-        rres = None
+    rres = _first_eq_query(
+        supabase,
+        "ratings",
+        uid,
+        ("users_id", '"Key"'),
+    )
 
     rating_rows = (rres.data if rres else None) or []
     for row in rating_rows:
-        isbn = str(row.get("Key2") or row.get("key2") or "").strip()
+        isbn = str(row.get("books_id") or row.get("Key2") or row.get("key2") or "").strip()
         if not isbn:
             continue
         score = _float_score(row.get("score"))
@@ -123,15 +138,16 @@ def load_user_profile_from_supabase(supabase: Any, user_id: str) -> UserProfile:
         )
 
     # --- shelves + shelf_books ---
-    try:
-        sres = supabase.table("shelves").select("*").eq("user_id", uid).execute()
-    except Exception as e:
-        print(f"[WARN] shelves 조회 실패: {e}")
-        sres = None
+    sres = _first_eq_query(
+        supabase,
+        "shelves",
+        uid,
+        ("users_id", "user_id"),
+    )
 
     shelf_meta: dict[str, str] = {}
     for row in (sres.data if sres else None) or []:
-        sk = str(row.get("Key") or row.get("key") or "").strip()
+        sk = str(row.get("shelves_id") or row.get("Key") or row.get("key") or "").strip()
         st = str(row.get("shelf_type") or "").strip()
         if sk:
             shelf_meta[sk] = st
@@ -142,20 +158,26 @@ def load_user_profile_from_supabase(supabase: Any, user_id: str) -> UserProfile:
         chunk_size = 100
         for i in range(0, len(shelf_keys), chunk_size):
             chunk = shelf_keys[i : i + chunk_size]
-            try:
-                sbres = (
-                    supabase.table("shelf_books")
-                    .select("*")
-                    .in_("Key2", chunk)
-                    .execute()
-                )
-                sb_rows.extend((sbres.data if sbres else None) or [])
-            except Exception as e:
-                print(f"[WARN] shelf_books 조회 실패: {e}")
+            last_sb: Exception | None = None
+            for shelf_col in ("shelves_id", '"Key2"'):
+                try:
+                    sbres = (
+                        supabase.table("shelf_books")
+                        .select("*")
+                        .in_(shelf_col, chunk)
+                        .execute()
+                    )
+                    sb_rows.extend((sbres.data if sbres else None) or [])
+                    last_sb = None
+                    break
+                except Exception as e:
+                    last_sb = e
+            if last_sb:
+                print(f"[WARN] shelf_books 조회 실패: {last_sb}")
 
         for row in sb_rows:
-            isbn = str(row.get("Key") or row.get("key") or "").strip()
-            sk2 = str(row.get("Key2") or row.get("key2") or "").strip()
+            isbn = str(row.get("books_id") or row.get("Key") or row.get("key") or "").strip()
+            sk2 = str(row.get("shelves_id") or row.get("Key2") or row.get("key2") or "").strip()
             st = shelf_meta.get(sk2, "")
             at = _shelf_type_to_action(st)
             if not isbn or at is None:
@@ -177,16 +199,15 @@ def load_user_profile_from_supabase(supabase: Any, user_id: str) -> UserProfile:
             )
 
     # --- book_user_states ---
-    try:
-        busres = (
-            supabase.table("book_user_states").select("*").eq("Key2", uid).execute()
-        )
-    except Exception as e:
-        print(f"[WARN] book_user_states 조회 실패: {e}")
-        busres = None
+    busres = _first_eq_query(
+        supabase,
+        "book_user_states",
+        uid,
+        ("users_id", '"Key2"'),
+    )
 
     for row in (busres.data if busres else None) or []:
-        isbn = str(row.get("Key") or row.get("key") or "").strip()
+        isbn = str(row.get("books_id") or row.get("Key") or row.get("key") or "").strip()
         state = str(row.get("shelf_state") or "").strip()
         at = _book_state_to_action(state)
         if not isbn or at is None:

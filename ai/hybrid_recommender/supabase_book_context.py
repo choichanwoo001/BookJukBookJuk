@@ -24,7 +24,7 @@ def create_supabase_client_from_env() -> Any | None:
         return None
 
 from book_chat.data_collector import BookContext
-from taste_analysis.library_api import BookKeyword
+from library_api import BookKeyword
 
 
 def _kdc_class_from_row(kdc_no: str, kdc_nm: str) -> str:

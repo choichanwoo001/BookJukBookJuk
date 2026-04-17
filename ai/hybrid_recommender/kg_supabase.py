@@ -48,7 +48,7 @@ def save_kg_to_supabase(supabase: Any, store: NetworkXKGStore) -> None:
     node_rows: list[dict[str, Any]] = []
     for nid, data in G.nodes(data=True):
         node_rows.append({
-            "node_id": str(nid),
+            "kg_nodes_id": str(nid),
             "attrs": _json_safe(dict(data)),
         })
 
@@ -89,7 +89,7 @@ def load_kg_from_supabase(supabase: Any) -> NetworkXKGStore | None:
         return None
 
     try:
-        nres = supabase.table("kg_nodes").select("node_id, attrs").execute()
+        nres = supabase.table("kg_nodes").select("kg_nodes_id, attrs").execute()
         eres = supabase.table("kg_edges").select(
             "src_id, dst_id, edge_key, relation, confidence, attrs"
         ).execute()
@@ -108,7 +108,7 @@ def load_kg_from_supabase(supabase: Any) -> NetworkXKGStore | None:
     store._relations = set()
 
     for row in nodes:
-        nid = str(row.get("node_id") or "").strip()
+        nid = str(row.get("kg_nodes_id") or "").strip()
         if not nid:
             continue
         raw = row.get("attrs")
