@@ -1,5 +1,9 @@
 """앱 기능·하이브리드 추천(`--supabase-user-id`) 테스트용 Supabase 시드.
 
+DEPRECATED (스키마): `users."Key"` / `ratings."Key"` 등 **구 MySQL 호환 컬럼**을 가정합니다.
+20260416 rebuild DDL(`users_id`, `books_id`, …)을 적용한 프로젝트에는
+`backend/scripts/seed_supabase_core_demo.py` 를 사용하세요.
+
 생성 항목:
   - public.users (1명)
   - public.shelves (타입별 4개: 평가한 / 읽은 / 읽는중 / 쇼핑리스트)

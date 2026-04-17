@@ -61,7 +61,7 @@ from book_catalog_filters import (  # noqa: E402
     explain_skip_content_filter,
     explain_skip_series,
 )
-from taste_analysis.library_api import (  # noqa: E402
+from library_api import (  # noqa: E402
     BASE_URL,
     fetch_book_detail,
     _get_api_error_message,

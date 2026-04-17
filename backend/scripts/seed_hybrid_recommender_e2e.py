@@ -73,7 +73,7 @@ from book_catalog_db_limits import (  # noqa: E402
     MAX_CHARS_PUBLISHER,
     clip,
 )
-from taste_analysis.library_api import fetch_book_detail  # noqa: E402
+from library_api import fetch_book_detail  # noqa: E402
 
 
 def _load_env() -> None:
