@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useParams, Navigate, Link } from 'react-router-dom'
 import StoreMap from '../components/StoreMap'
 import PopularComments from '../components/PopularComments'
 import { useTab } from '../hooks/useTab'
+import { useAsyncResource } from '../hooks/useAsyncResource'
 import { CHARACTER_IMG } from '../data/constants'
 import { pickFallbackCoverById } from '../data/coverUrl'
 import { fetchBookComments, fetchBookDetail } from '../data/bookApi'
@@ -14,33 +15,21 @@ function BookDetail() {
   const [userStars, setUserStars] = useState(0)
   const [showFullDesc, setShowFullDesc] = useState(false)
   const { activeTab, setActiveTab } = useTab('story')
-  const [book, setBook] = useState(null)
-  const [comments, setComments] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    if (!id) return undefined
-    setIsLoading(true)
-    Promise.all([fetchBookDetail(id), fetchBookComments(id, 20)])
-      .then(([bookData, commentsData]) => {
-        if (cancelled) return
-        setBook(bookData)
-        setComments(Array.isArray(commentsData.items) ? commentsData.items : [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setBook(null)
-        setComments([])
-      })
-      .finally(() => {
-        if (cancelled) return
-        setIsLoading(false)
-      })
-    return () => {
-      cancelled = true
+  const loadDetail = useCallback(async () => {
+    const [bookData, commentsData] = await Promise.all([fetchBookDetail(id), fetchBookComments(id, 20)])
+    return {
+      book: bookData,
+      comments: Array.isArray(commentsData.items) ? commentsData.items : [],
     }
   }, [id])
+  const { data: detailData, isLoading } = useAsyncResource({
+    enabled: Boolean(id),
+    initialData: null,
+    load: loadDetail,
+    deps: [loadDetail, id],
+  })
+  const book = detailData?.book ?? null
+  const comments = useMemo(() => detailData?.comments ?? [], [detailData])
 
   if (!book && !isLoading) {
     return <Navigate to="/" replace />

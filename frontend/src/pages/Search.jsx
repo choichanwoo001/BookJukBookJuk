@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
 import { fetchBooksSearch } from '../data/bookApi'
+import { useAsyncResource } from '../hooks/useAsyncResource'
 import './Search.css'
 
 const TABS = [
@@ -15,32 +16,22 @@ function Search() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const { activeTab, setActiveTab } = useTab('book')
-  const [bookResults, setBookResults] = useState([])
+  const trimmedQuery = query.trim()
 
-  useEffect(() => {
-    let cancelled = false
-    const q = query.trim()
-    if (!q || activeTab !== 'book') {
-      setBookResults([])
-      return undefined
-    }
-    fetchBooksSearch(q, 30)
-      .then((data) => {
-        if (cancelled) return
-        setBookResults(Array.isArray(data.items) ? data.items : [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setBookResults([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [query, activeTab])
+  const loadBookResults = useCallback(async () => {
+    const data = await fetchBooksSearch(trimmedQuery, 30)
+    return Array.isArray(data.items) ? data.items : []
+  }, [trimmedQuery])
+  const { data: bookResults } = useAsyncResource({
+    enabled: Boolean(trimmedQuery) && activeTab === 'book',
+    initialData: [],
+    load: loadBookResults,
+    deps: [loadBookResults, activeTab, trimmedQuery],
+  })
 
   const results = useMemo(() => bookResults, [bookResults])
 
-  const showResults = query.trim().length > 0
+  const showResults = trimmedQuery.length > 0
 
   return (
     <div className="search-page">

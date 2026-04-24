@@ -1,34 +1,23 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BookSection from '../components/BookSection'
 import { fetchHomeSections } from '../data/bookApi'
+import { useAsyncResource } from '../hooks/useAsyncResource'
 import './Home.css'
+
+const EMPTY_SECTIONS = []
 
 function Home() {
   const navigate = useNavigate()
-  const [sectionsData, setSectionsData] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    setIsLoading(true)
-    fetchHomeSections(4)
-      .then((data) => {
-        if (cancelled) return
-        setSectionsData(Array.isArray(data.items) ? data.items : [])
-      })
-      .catch(() => {
-        if (cancelled) return
-        setSectionsData([])
-      })
-      .finally(() => {
-        if (cancelled) return
-        setIsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
+  const loadSections = useCallback(async () => {
+    const data = await fetchHomeSections(4)
+    return Array.isArray(data.items) ? data.items : []
   }, [])
+  const { data: sectionsData, isLoading } = useAsyncResource({
+    initialData: EMPTY_SECTIONS,
+    load: loadSections,
+    deps: [loadSections],
+  })
 
   const sections = useMemo(() => sectionsData, [sectionsData])
 

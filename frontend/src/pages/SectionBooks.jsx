@@ -1,36 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import BookCard from '../components/BookCard'
 import BackButton from '../components/BackButton'
 import { fetchSectionBooks } from '../data/bookApi'
+import { useAsyncResource } from '../hooks/useAsyncResource'
 import './SectionBooks.css'
 
 function SectionBooks() {
   const { sectionId } = useParams()
-  const [section, setSection] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    if (!sectionId) return undefined
-    setIsLoading(true)
-    fetchSectionBooks(sectionId, 40)
-      .then((data) => {
-        if (cancelled) return
-        setSection(data)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setSection(null)
-      })
-      .finally(() => {
-        if (cancelled) return
-        setIsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [sectionId])
+  const loadSection = useCallback(() => fetchSectionBooks(sectionId, 40), [sectionId])
+  const { data: section, isLoading } = useAsyncResource({
+    enabled: Boolean(sectionId),
+    initialData: null,
+    load: loadSection,
+    deps: [loadSection, sectionId],
+  })
 
   if (!section) {
     return (
