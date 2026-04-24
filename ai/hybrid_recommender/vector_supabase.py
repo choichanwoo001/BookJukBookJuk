@@ -61,15 +61,24 @@ def upsert_all_book_vectors(supabase: Any, store: BookVectorStore) -> None:
     rows = [book_vector_to_row(bv) for bv in store._books if _clip(bv.isbn13, _MAX_ISBN)]
     if not rows:
         return
+    ok_rows = 0
     for i in range(0, len(rows), _BATCH):
         chunk = rows[i : i + _BATCH]
         try:
             supabase.table("book_vectors").upsert(
                 chunk, on_conflict="isbn"
             ).execute()
+            ok_rows += len(chunk)
         except Exception as e:
             print(f"[WARN] book_vectors 배치 upsert 실패: {e}")
-    print(f"[Vector] Supabase upsert 완료: {len(rows)}권")
+    if ok_rows > 0:
+        print(f"[Vector] Supabase upsert 완료: {ok_rows}권")
+    else:
+        print(
+            f"[오류] book_vectors upsert가 모두 실패했습니다 ({len(rows)}권 시도). "
+            "DB에 `book_vectors(isbn)` 비부분 유니크 인덱스가 있는지 마이그레이션 "
+            "`20260419140000_book_vectors_unique_index_for_upsert.sql` 적용 여부를 확인하세요."
+        )
 
 
 def load_book_vectors_from_supabase(supabase: Any) -> list[BookVector]:

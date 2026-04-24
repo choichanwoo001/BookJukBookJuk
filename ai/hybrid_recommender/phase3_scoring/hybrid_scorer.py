@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -95,9 +95,16 @@ class HybridScorer:
         seed_weights: dict[str, float],
         user_query_vector: np.ndarray | None,
         exclude_isbns: list[str],
-    ) -> set[str]:
-        """후보 도서 ISBN 집합을 수집한다."""
+    ) -> tuple[set[str], dict[str, Any]]:
+        """후보 도서 ISBN 집합을 수집한다. 두 번째 값은 진단용 메타데이터."""
         candidates: set[str] = set()
+        exclude_set = set(exclude_isbns)
+        diag: dict[str, Any] = {
+            "vector_search_hits": 0,
+            "ripple_book_added": 0,
+            "fallback_book_added": 0,
+            "query_vector_ok": user_query_vector is not None,
+        }
 
         # 방법 1: 벡터 유사도 기반 후보
         if user_query_vector is not None:
@@ -106,10 +113,12 @@ class HybridScorer:
                 top_k=self.candidate_pool_size,
                 exclude_isbns=exclude_isbns,
             )
+            diag["vector_search_hits"] = len(vec_results)
             for r in vec_results:
                 candidates.add(r.book.isbn13)
 
         # 방법 2: KG 확산 기반 후보 (Book 타입 노드)
+        before_ripple = len(candidates)
         seed_entity_ids = [f"book:{isbn}" for isbn in seed_weights.keys()]
         for hop in range(1, 3):
             ripple_set = self.kg.get_ripple_set(
@@ -123,18 +132,26 @@ class HybridScorer:
                     if not isbn:
                         # ID 에서 ISBN 추출 시도 (book:ISBN13 형태)
                         isbn = tail_id.replace("book:", "")
-                    if isbn and isbn not in exclude_isbns:
+                    if isbn and isbn not in exclude_set:
                         candidates.add(isbn)
+        diag["ripple_book_added"] = len(candidates) - before_ripple
 
         # 방법 3: KG 에서 모든 Book 노드를 폴백으로 추가 (후보가 부족할 때)
+        before_fb = len(candidates)
         if len(candidates) < 10:
             all_books = self.kg.get_book_ids()
             for book_id in all_books:
                 isbn = book_id.replace("book:", "")
-                if isbn not in exclude_isbns:
+                if isbn not in exclude_set:
                     candidates.add(isbn)
+        diag["fallback_book_added"] = len(candidates) - before_fb
 
-        return candidates
+        book_ids = self.kg.get_book_ids()
+        diag["kg_book_node_count"] = len(book_ids)
+        diag["kg_book_isbns"] = {bid.replace("book:", "") for bid in book_ids}
+        diag["exclude_count"] = len(exclude_set)
+
+        return candidates, diag
 
     def _compute_vector_scores(
         self,
@@ -226,6 +243,7 @@ class HybridScorer:
         user_profile: UserProfile,
         reference_time: datetime | None = None,
         n_results: int = 20,
+        verbose: bool = False,
     ) -> list[ScoredBook]:
         """하이브리드 점수로 추천 후보 도서를 랭킹한다.
 
@@ -233,6 +251,7 @@ class HybridScorer:
             user_profile: 사용자 행동 이력
             reference_time: 기준 시각 (시간 감쇠 계산용)
             n_results: 반환할 후보 수
+            verbose: True면 후보 수집·부재 원인을 표준 출력에 상세 기록
 
         Returns:
             final_score 내림차순으로 정렬된 ScoredBook 목록
@@ -246,20 +265,70 @@ class HybridScorer:
 
         if not seed_isbns:
             # 완전 콜드스타트: 전체 책에서 인기도 기반 폴백
-            return self._cold_start_recommend(n_results)
+            print("          [요약] 시드 ISBN 없음 → 콜드스타트 분기")
+            out = self._cold_start_recommend(n_results)
+            if not out and len(self.vector_store) == 0:
+                print(
+                    "          [원인] 콜드스타트인데 벡터 스토어도 비어 있어 추천할 책이 없습니다."
+                )
+            return out
 
         # 2) 동적 alpha 결정
         alpha = self.compute_alpha(user_profile)
 
         # 3) 사용자 쿼리 벡터 생성
         user_query_vec = self._build_user_query_vector(seed_weights)
+        seeds_with_vec = sum(
+            1 for isbn in seed_weights if self.vector_store.get_vector(isbn) is not None
+        )
 
         # 4) 후보 수집
-        candidate_isbns = list(self._collect_candidates(
+        raw_candidates, cand_diag = self._collect_candidates(
             user_profile, seed_weights, user_query_vec, exclude_isbns
-        ))
+        )
+        candidate_isbns = list(raw_candidates)
+
+        print(
+            f"          [요약] 벡터 스토어 {len(self.vector_store)}권 | "
+            f"시드 ISBN {len(seed_isbns)}개(임베딩 있는 시드 {seeds_with_vec}개) | "
+            f"쿼리 벡터 {'있음' if user_query_vec is not None else '없음'} | "
+            f"수집된 후보 {len(candidate_isbns)}개 | KG Book 노드 {cand_diag['kg_book_node_count']}개"
+        )
+        if verbose:
+            print(
+                "          [진단] 후보 수집 상세: "
+                f"벡터 검색 {cand_diag['vector_search_hits']}건, "
+                f"KG 리플 {cand_diag['ripple_book_added']}건, "
+                f"폴백 추가 {cand_diag['fallback_book_added']}건"
+            )
 
         if not candidate_isbns:
+            kg_isbns = cand_diag.get("kg_book_isbns") or set()
+            non_seed_in_kg = kg_isbns - set(seed_isbns)
+            lines = [
+                "          [원인] 추천 후보가 0개입니다.",
+                "            · 이력에 있는 ISBN은 후보에서 제외됩니다.",
+            ]
+            if len(self.vector_store) == 0:
+                lines.append(
+                    "            · book_vectors(메모리)가 비어 있어 유사 도서 검색 경로가 없습니다. "
+                    "`build_hybrid_catalog.py` 실행 시 HYBRID_PERSIST_EMBEDDINGS=1 로 저장됐는지 확인하세요."
+                )
+            if user_query_vec is None and seeds_with_vec == 0:
+                lines.append(
+                    "            · 시드 ISBN에 해당하는 임베딩이 없어 사용자 쿼리 벡터를 만들 수 없습니다."
+                )
+            if not non_seed_in_kg and kg_isbns:
+                lines.append(
+                    "            · KG에 있는 Book 노드가 모두 이미 읽은 책(시드)과 겹칩니다. "
+                    "이력에 없는 다른 ISBN을 카탈로그에 넣어 KG/벡터를 넓히면 추천이 생깁니다."
+                )
+            elif not kg_isbns:
+                lines.append(
+                    "            · KG에 Book 타입 노드가 없습니다."
+                )
+            for line in lines:
+                print(line)
             return []
 
         # 5) 점수 계산
@@ -303,7 +372,11 @@ class HybridScorer:
                     ))
 
         scored_books.sort(key=lambda x: x.final_score, reverse=True)
-        return scored_books[:n_results]
+        out = scored_books[:n_results]
+        if verbose and out:
+            top = ", ".join(f"{b.isbn13}:{b.final_score:.3f}" for b in out[:5])
+            print(f"          [진단] 상위 후보(최대 5개) final_score: {top}")
+        return out
 
     def _cold_start_recommend(self, n_results: int) -> list[ScoredBook]:
         """행동 이력이 전혀 없는 완전 콜드스타트 사용자에게 전체 평균 벡터 기반 추천."""

@@ -386,6 +386,7 @@ class HybridRecommenderPipeline:
         top_k: int = 10,
         reference_time: datetime | None = None,
         with_explanation: bool = True,
+        verbose: bool = False,
     ) -> list[ExplainedRecommendation]:
         """4단계 파이프라인을 실행해 추천 결과를 반환한다.
 
@@ -414,8 +415,9 @@ class HybridRecommenderPipeline:
             user_profile=profile,
             reference_time=ref,
             n_results=top_k * 3,
+            verbose=verbose,
         )
-        print(f"          후보 {len(scored)}개 스코어링 완료")
+        print(f"          스코어링 완료: 랭킹된 후보 {len(scored)}개 (top_k×3까지 탐색)")
 
         # Phase 4: 다양성 보정 (MMR + Epsilon-greedy)
         print("[Phase 4] 다양성 보정 (MMR + ε-greedy) 중...")

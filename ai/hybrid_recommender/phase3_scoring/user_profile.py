@@ -223,6 +223,16 @@ class UserProfile:
     def unique_book_count(self) -> int:
         return len({a.isbn13 for a in self._actions})
 
+    def distinct_isbn13s(self) -> list[str]:
+        """이력에 등장한 ISBN 전체(중복 제거, 첫 등장 순서 유지)."""
+        seen: set[str] = set()
+        out: list[str] = []
+        for a in self._actions:
+            if a.isbn13 and a.isbn13 not in seen:
+                seen.add(a.isbn13)
+                out.append(a.isbn13)
+        return out
+
     def summary(self) -> str:
         return (
             f"사용자 {self.user_id}: "

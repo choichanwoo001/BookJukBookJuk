@@ -3,7 +3,7 @@
 Knowledge Graph + RippleNet + Hybrid Scoring + XAI 를 결합한
 4단계 추천 파이프라인.
 
-빠른 시작:
+빠른 시작 (프로그램 코드에서 카탈로그를 채우는 경우):
     from hybrid_recommender import HybridRecommenderPipeline, UserProfile
 
     pipeline = HybridRecommenderPipeline.from_env()
@@ -11,7 +11,7 @@ Knowledge Graph + RippleNet + Hybrid Scoring + XAI 를 결합한
     pipeline.user_profile.add_read("ISBN-13", "도서 제목")
     results = await pipeline.recommend(top_k=5)
 
-Supabase 사용자 이력 로드: `load_user_profile_from_supabase(client, users.Key)` → `pipeline.user_profile` 에 대입.
+서비스·CLI: 사용자 이력은 `load_user_profile_from_supabase(client, users.Key)` 로 DB에서만 로드하는 것을 권장합니다.
 """
 from .pipeline import HybridRecommenderPipeline
 from .phase3_scoring.user_profile import UserProfile, UserAction, ActionType

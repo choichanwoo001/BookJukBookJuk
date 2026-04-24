@@ -1,39 +1,24 @@
 """북적북적 하이브리드 추천 엔진 CLI 진입점
 
-카탈로그·독서 이력은 로컬 SQLite 없이 CLI·저장된 파이프라인만 사용합니다.
+독서 이력은 **항상 Supabase** (`ratings` / `shelves` / `book_user_states`)에서만 불러옵니다.
+KG·임베딩은 DB에 영속된 경우 시작 시 로드합니다 (`HYBRID_PERSIST_KG` / `HYBRID_PERSIST_EMBEDDINGS`).
 
-E2E 권장 순서 (KG·임베딩·사용자 DB 기반 추천):
-  1) `backend/scripts/seed_hybrid_recommender_e2e.py` 등으로 `books`/`book_api_cache` 시드
-  2) `HYBRID_USE_SUPABASE=1`, `HYBRID_PERSIST_KG=1` 로 `--catalog-isbn` 으로 `add_books` →
-     `kg_nodes`/`kg_edges` + `book_vectors` 생성·저장
-  3) Supabase 에 `ratings` / `shelves`+`shelf_books` / `book_user_states` 등 사용자 행 삽입
-  4) `--supabase-user-id <users.Key>` 로 프로파일 로드 후 추천 (또는 `--skip-catalog` 로
-     이미 DB 에 쌓인 KG·벡터만 로드)
+사전 준비 (KG·벡터가 비어 있으면 추천이 불가):
+  1) `backend/scripts/seed_hybrid_recommender_e2e.py --isbn ...` 로 `books`(·캐시) 시드 (이력 책 ISBN 포함)
+  2) `ai/build_hybrid_catalog.py` 로 **사용자 이력에 나온 ISBN** 기준 KG·`book_vectors` 구축 (`HYBRID_PERSIST_KG=1` 등)
 
-ISBN 등록 시 Supabase 에서 메타를 읽으려면 `.env` 에 `HYBRID_USE_SUPABASE=1`,
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`(또는 ANON) 를 두거나 `--use-supabase` 를 사용합니다.
-`book_api_cache` 는 RLS 때문에 서비스 롤 권장.
+필수 환경: 루트 `.env` 에 `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`(또는 ANON).
+KG/벡터 DB 로드·영속은 `HYBRID_PERSIST_KG` / `HYBRID_PERSIST_EMBEDDINGS`(`.env.example` 참고).
 
-KG 를 DB 에 저장·로드하려면 `HYBRID_PERSIST_KG=1`(또는 `--persist-kg`) 과 서비스 롤 키로
-`kg_nodes`/`kg_edges` 마이그레이션(`20260414120000_hybrid_kg_tables.sql`) 이 적용되어 있어야 합니다.
-
-임베딩은 `book_vectors` 테이블에 upsert 됩니다. 기본은 KG 와 동일하게 켜지며,
-끄려면 `HYBRID_PERSIST_EMBEDDINGS=0` 또는 `--no-persist-embeddings` 를 사용합니다.
+사용자 식별: 인자 생략 시 `HYBRID_CLI_SUPABASE_USER_ID` 환경 변수, 둘 다 없으면
+`dev_test_user_1`(시드 `seed_supabase_app_test_data.py` 기본값과 동일).
 
 사용 예시:
-    # ISBN으로 카탈로그 + 사용자 이력 지정
-    python hybrid_recommender_main.py --catalog-isbn 9788937460470 9788936434120 \\
-        --user-isbn 9788937460470
+    python hybrid_recommender_main.py
 
-    # Supabase 사용자 키로 이력 로드 (ratings / shelves / book_user_states)
-    python hybrid_recommender_main.py --catalog-isbn 9788937460470 \\
-        --supabase-user-id my_user_key --use-supabase --persist-kg
+    python hybrid_recommender_main.py --supabase-user-id <다른 users.Key>
 
-    # 저장된 프로파일로 추천
     python hybrid_recommender_main.py --load-dir ./saved_pipeline
-
-    # 대화형 모드
-    python hybrid_recommender_main.py --interactive
 """
 from __future__ import annotations
 
@@ -53,7 +38,8 @@ if _env.is_file():
 
 sys.path.insert(0, str(_AI_DIR))
 
-DEV_TEST_USER_ID = "dev_user_1"
+# `backend/scripts/seed_supabase_app_test_data.py` 의 DEFAULT_USER_KEY 와 맞춤 (단일 개발 사용자)
+DEFAULT_SUPABASE_USER_ID = "dev_test_user_1"
 
 from hybrid_recommender import HybridRecommenderPipeline
 from hybrid_recommender.supabase_book_context import create_supabase_client_from_env
@@ -106,105 +92,119 @@ def _exit(msg: str, code: int = 1) -> None:
     raise SystemExit(code)
 
 
+def _resolve_supabase_user_id(cli_value: str | None) -> str:
+    """CLI > HYBRID_CLI_SUPABASE_USER_ID > DEFAULT_SUPABASE_USER_ID."""
+    if cli_value and str(cli_value).strip():
+        return str(cli_value).strip()
+    env_uid = os.getenv("HYBRID_CLI_SUPABASE_USER_ID", "").strip()
+    if env_uid:
+        return env_uid
+    return DEFAULT_SUPABASE_USER_ID
+
+
+def _persist_kwargs_from_args(args: argparse.Namespace) -> dict:
+    if args.persist_kg and args.no_persist_kg:
+        _exit("[오류] --persist-kg 와 --no-persist-kg 는 함께 쓸 수 없습니다.")
+    if args.persist_embeddings and args.no_persist_embeddings:
+        _exit("[오류] --persist-embeddings 와 --no-persist-embeddings 는 함께 쓸 수 없습니다.")
+    out: dict = {}
+    if args.persist_kg:
+        out["persist_kg"] = True
+    elif args.no_persist_kg:
+        out["persist_kg"] = False
+    if args.persist_embeddings:
+        out["persist_embeddings"] = True
+    elif args.no_persist_embeddings:
+        out["persist_embeddings"] = False
+    return out
+
+
 def _apply_supabase_user_profile(pipeline: HybridRecommenderPipeline, supabase_user_id: str) -> None:
     """`ratings` / `shelves` / `book_user_states` 를 읽어 `pipeline.user_profile` 을 덮어쓴다."""
     sb = pipeline.supabase_client or create_supabase_client_from_env()
     if not sb:
-        _exit("[오류] --supabase-user-id 는 SUPABASE_URL 과 SUPABASE_SERVICE_ROLE_KEY(또는 ANON) 가 필요합니다.")
+        _exit("[오류] Supabase 클라이언트가 없습니다. SUPABASE_URL 과 키를 확인하세요.")
     pipeline.user_profile = load_user_profile_from_supabase(sb, supabase_user_id)
     print(f"\n[사용자 이력] Supabase 사용자 {supabase_user_id} 로드")
     print(f"  {pipeline.user_profile.summary()}")
 
 
 async def run_recommend(args: argparse.Namespace) -> None:
-    """추천 파이프라인을 실행한다."""
+    """Supabase 사용자 이력만으로 추천 파이프라인을 실행한다."""
     _print_header()
 
-    if getattr(args, "supabase_user_id", None):
-        args.user_id = args.supabase_user_id
+    cli_uid = getattr(args, "supabase_user_id", None)
+    env_uid = os.getenv("HYBRID_CLI_SUPABASE_USER_ID", "").strip()
+    uid = _resolve_supabase_user_id(cli_uid)
+    print(f"[사용자] Supabase 사용자 ID: {uid}")
+    if not (cli_uid and str(cli_uid).strip()) and not env_uid:
+        print(
+            f"  (기본 {DEFAULT_SUPABASE_USER_ID} — 다른 사용자: "
+            "--supabase-user-id 또는 HYBRID_CLI_SUPABASE_USER_ID)"
+        )
 
-    supabase_kw: dict = {}
-    if getattr(args, "use_supabase", False):
-        supabase_kw["use_supabase"] = True
-    elif getattr(args, "no_supabase", False):
-        supabase_kw["use_supabase"] = False
-    if args.persist_kg and args.no_persist_kg:
-        _exit("[오류] --persist-kg 와 --no-persist-kg 는 함께 쓸 수 없습니다.")
-    if args.persist_kg:
-        supabase_kw["persist_kg"] = True
-    elif args.no_persist_kg:
-        supabase_kw["persist_kg"] = False
-    if args.persist_embeddings and args.no_persist_embeddings:
-        _exit("[오류] --persist-embeddings 와 --no-persist-embeddings 는 함께 쓸 수 없습니다.")
-    if args.persist_embeddings:
-        supabase_kw["persist_embeddings"] = True
-    elif args.no_persist_embeddings:
-        supabase_kw["persist_embeddings"] = False
+    sb = create_supabase_client_from_env()
+    if not sb:
+        _exit(
+            "[오류] Supabase 연결이 필요합니다. "
+            "SUPABASE_URL 과 SUPABASE_SERVICE_ROLE_KEY(또는 ANON) 를 확인하세요."
+        )
 
-    if getattr(args, "skip_catalog", False) and args.catalog_isbn:
-        _exit("[오류] --skip-catalog 와 --catalog-isbn 은 함께 쓸 수 없습니다.")
+    persist_kw = _persist_kwargs_from_args(args)
 
     if args.load_dir:
         if not os.path.exists(args.load_dir):
             _exit(f"[오류] --load-dir 경로가 없습니다: {args.load_dir}")
         print(f"[로드] {args.load_dir}")
         pipeline = HybridRecommenderPipeline.from_env(
-            user_id=args.user_id,
+            user_id=uid,
             noise_threshold=args.noise_threshold,
             mmr_lambda=args.mmr_lambda,
             epsilon=args.epsilon,
-            **supabase_kw,
+            supabase_client=sb,
+            use_supabase=True,
+            **persist_kw,
         )
         pipeline.load(args.load_dir)
-    elif getattr(args, "skip_catalog", False):
-        pipeline = HybridRecommenderPipeline.from_env(
-            user_id=args.user_id,
-            noise_threshold=args.noise_threshold,
-            mmr_lambda=args.mmr_lambda,
-            epsilon=args.epsilon,
-            **supabase_kw,
-        )
-        print("[카탈로그] --skip-catalog: add_books 생략 (Supabase 등에 이미 KG/벡터가 있어야 합니다).")
-    elif args.catalog_isbn:
-        pipeline = HybridRecommenderPipeline.from_env(
-            user_id=args.user_id,
-            noise_threshold=args.noise_threshold,
-            mmr_lambda=args.mmr_lambda,
-            epsilon=args.epsilon,
-            **supabase_kw,
-        )
-
-        print(f"[카탈로그] {len(args.catalog_isbn)}권 등록 시작...")
-        await pipeline.add_books(
-            isbn_list=args.catalog_isbn,
-            concurrency=args.concurrency,
-        )
     else:
+        pipeline = HybridRecommenderPipeline.from_env(
+            user_id=uid,
+            noise_threshold=args.noise_threshold,
+            mmr_lambda=args.mmr_lambda,
+            epsilon=args.epsilon,
+            supabase_client=sb,
+            use_supabase=True,
+            **persist_kw,
+        )
+        print("[카탈로그] Supabase KG·book_vectors만 사용합니다 (add_books 생략).")
+
+    if pipeline.kg.node_count() == 0 and len(pipeline.vector_store) == 0:
         _exit(
-            "[오류] `--load-dir`, `--catalog-isbn`, `--skip-catalog` 중 하나를 지정하세요."
+            "[오류] 로드된 KG/벡터가 없습니다. "
+            "HYBRID_PERSIST_KG·HYBRID_PERSIST_EMBEDDINGS 로 DB에 구축했는지, 마이그레이션을 확인하세요."
         )
 
-    loaded_from_dir = bool(args.load_dir and os.path.exists(args.load_dir))
+    _apply_supabase_user_profile(pipeline, uid)
 
-    if args.supabase_user_id:
-        _apply_supabase_user_profile(pipeline, args.supabase_user_id)
-
-    if args.user_isbn:
-        print(f"\n[사용자 이력] CLI에서 {len(args.user_isbn)}권 추가...")
-        for isbn in args.user_isbn:
-            title = pipeline._book_titles.get(isbn, isbn)
-            pipeline.user_profile.add_read(isbn, title)
-            print(f"  - {title} ({isbn})")
-
-    if not loaded_from_dir and not args.supabase_user_id and not args.user_isbn:
-        _exit("[오류] `--user-isbn` 또는 `--supabase-user-id` 로 독서 이력을 지정하세요.")
+    if pipeline.user_profile.action_count == 0:
+        _exit(
+            "[오류] 이 사용자에 대한 Supabase 이력(ratings / shelves / book_user_states)이 없습니다. "
+            "DB에 데이터를 넣은 뒤 다시 실행하세요."
+        )
 
     print(f"\n  {pipeline.user_profile.summary()}")
 
+    verbose = bool(getattr(args, "verbose", False)) or os.getenv(
+        "HYBRID_VERBOSE", ""
+    ).strip().lower() in ("1", "true", "yes")
+
     print(f"\n[추천] top_k={args.top_k} 실행 중...")
+    if verbose:
+        print("  (--verbose / HYBRID_VERBOSE=1: 후보 수집·상위 점수 상세 출력)")
     results = await pipeline.recommend(
         top_k=args.top_k,
         with_explanation=not args.no_explanation,
+        verbose=verbose,
     )
 
     _print_results(results)
@@ -216,167 +216,29 @@ async def run_recommend(args: argparse.Namespace) -> None:
     print(f"파이프라인 상태: {status}")
 
 
-async def run_interactive(args: argparse.Namespace) -> None:
-    """대화형 모드로 실행한다."""
-    _print_header()
-    print("대화형 모드 시작. 'help' 로 명령어 확인, 'quit' 로 종료.\n")
-
-    if getattr(args, "supabase_user_id", None):
-        args.user_id = args.supabase_user_id
-
-    supabase_kw: dict = {}
-    if getattr(args, "use_supabase", False):
-        supabase_kw["use_supabase"] = True
-    elif getattr(args, "no_supabase", False):
-        supabase_kw["use_supabase"] = False
-    if args.persist_kg and args.no_persist_kg:
-        _exit("[오류] --persist-kg 와 --no-persist-kg 는 함께 쓸 수 없습니다.")
-    if args.persist_kg:
-        supabase_kw["persist_kg"] = True
-    elif args.no_persist_kg:
-        supabase_kw["persist_kg"] = False
-    if args.persist_embeddings and args.no_persist_embeddings:
-        _exit("[오류] --persist-embeddings 와 --no-persist-embeddings 는 함께 쓸 수 없습니다.")
-    if args.persist_embeddings:
-        supabase_kw["persist_embeddings"] = True
-    elif args.no_persist_embeddings:
-        supabase_kw["persist_embeddings"] = False
-
-    pipeline = HybridRecommenderPipeline.from_env(
-        user_id=args.user_id,
-        noise_threshold=args.noise_threshold,
-        mmr_lambda=args.mmr_lambda,
-        epsilon=args.epsilon,
-        **supabase_kw,
-    )
-
-    if args.load_dir and os.path.exists(args.load_dir):
-        pipeline.load(args.load_dir)
-    elif args.interactive_load_catalog and args.catalog_isbn:
-        print(f"[카탈로그] --catalog-isbn {len(args.catalog_isbn)}권 등록...")
-        await pipeline.add_books(
-            isbn_list=args.catalog_isbn,
-            concurrency=args.concurrency,
-        )
-    elif args.interactive_load_catalog:
-        print(
-            "[안내] `--interactive-load-catalog` 는 `--catalog-isbn` 과 함께 쓰거나, "
-            "시작 후 `add <isbn>` 으로 등록하세요."
-        )
-
-    if args.supabase_user_id:
-        _apply_supabase_user_profile(pipeline, args.supabase_user_id)
-
-    while True:
-        try:
-            user_input = input("\n> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\n종료합니다.")
-            break
-
-        if not user_input:
-            continue
-
-        cmd = user_input.lower()
-
-        if cmd in ("quit", "exit", "종료"):
-            print("종료합니다.")
-            break
-
-        elif cmd == "help":
-            print("""
-명령어:
-  add <isbn>          책을 ISBN 으로 등록
-  read <isbn>         독서 이력 추가 (완독)
-  recommend [n]       추천 실행 (기본 5권)
-  status              현재 상태 확인
-  save <path>         상태 저장
-  load <path>         상태 로드
-  quit                종료
-""")
-
-        elif cmd.startswith("add "):
-            isbn = cmd[4:].strip()
-            try:
-                await pipeline.add_book(isbn=isbn)
-            except Exception as e:
-                print(f"오류: {e}")
-
-        elif cmd.startswith("read "):
-            isbn = cmd[5:].strip()
-            title = pipeline._book_titles.get(isbn, isbn)
-            pipeline.user_profile.add_read(isbn, title)
-            print(f"독서 이력 추가: {title}")
-
-        elif cmd.startswith("recommend"):
-            parts = cmd.split()
-            n = int(parts[1]) if len(parts) > 1 else 5
-            try:
-                results = await pipeline.recommend(top_k=n)
-                _print_results(results)
-            except Exception as e:
-                print(f"추천 오류: {e}")
-
-        elif cmd == "status":
-            print(pipeline.status())
-
-        elif cmd.startswith("save "):
-            path = cmd[5:].strip()
-            pipeline.save(path)
-
-        elif cmd.startswith("load "):
-            path = cmd[5:].strip()
-            pipeline.load(path)
-
-        else:
-            print(f"알 수 없는 명령어: '{user_input}'. 'help' 로 확인하세요.")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="북적북적 하이브리드 추천 엔진",
+        description="북적북적 하이브리드 추천 (Supabase 사용자 이력 전용)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
 
     parser.add_argument(
-        "--interactive", "-i",
-        action="store_true",
-        help="대화형 모드 실행",
-    )
-    parser.add_argument(
-        "--interactive-load-catalog",
-        action="store_true",
-        help="대화형 시작 시 --catalog-isbn 목록으로 add_books",
-    )
-
-    parser.add_argument(
-        "--user-isbn", nargs="+",
-        metavar="ISBN",
-        help="배치 모드에서 사용자 독서 이력(ISBN). --supabase-user-id 없을 때 --load-dir 없으면 필수",
-    )
-    parser.add_argument(
         "--supabase-user-id",
         metavar="USER_KEY",
         default=None,
-        help="public.users.Key 와 동일한 ID. ratings / shelves / book_user_states 에서 이력 로드",
-    )
-    parser.add_argument(
-        "--catalog-isbn", nargs="+",
-        metavar="ISBN",
-        help="카탈로그 구축용 ISBN. --load-dir·--skip-catalog 없을 때 필요",
-    )
-    parser.add_argument(
-        "--skip-catalog",
-        action="store_true",
-        help="add_books 생략. HYBRID_PERSIST_KG 등으로 이미 DB에 KG·book_vectors가 있을 때",
+        help=(
+            'Supabase 사용자 식별자 (public.users."Key" 등). '
+            "생략 시 HYBRID_CLI_SUPABASE_USER_ID, 없으면 dev_test_user_1"
+        ),
     )
 
     parser.add_argument("--top-k", type=int, default=5, help="추천 수 (기본 5)")
     parser.add_argument(
-        "--user-id",
-        default=DEV_TEST_USER_ID,
-        help=f"사용자 ID (기본 {DEV_TEST_USER_ID})",
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Phase 3 후보 수집 상세·상위 점수 출력 (또는 HYBRID_VERBOSE=1)",
     )
     parser.add_argument(
         "--no-explanation",
@@ -390,23 +252,10 @@ def main() -> None:
                         help="MMR 관련성-다양성 균형 (기본 0.6)")
     parser.add_argument("--epsilon", type=float, default=0.15,
                         help="Epsilon-greedy 탐색률 (기본 0.15)")
-    parser.add_argument("--concurrency", type=int, default=3,
-                        help="병렬 API 호출 수 (기본 3)")
 
     parser.add_argument("--save-dir", help="파이프라인 저장 경로")
-    parser.add_argument("--load-dir", help="파이프라인 로드 경로")
+    parser.add_argument("--load-dir", help="저장된 파이프라인 로드 후, 사용자 이력은 여전히 Supabase에서 로드")
 
-    sb = parser.add_mutually_exclusive_group()
-    sb.add_argument(
-        "--use-supabase",
-        action="store_true",
-        help="ISBN 등록 시 Supabase public.books(+book_api_cache) 우선 (SUPABASE_URL/KEY 필요)",
-    )
-    sb.add_argument(
-        "--no-supabase",
-        action="store_true",
-        help="환경에 HYBRID_USE_SUPABASE 가 있어도 API 수집만 사용",
-    )
     parser.add_argument(
         "--persist-kg",
         action="store_true",
@@ -429,11 +278,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-
-    if args.interactive:
-        asyncio.run(run_interactive(args))
-    else:
-        asyncio.run(run_recommend(args))
+    asyncio.run(run_recommend(args))
 
 
 if __name__ == "__main__":
