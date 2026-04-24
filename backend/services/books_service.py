@@ -155,7 +155,7 @@ def get_book_comments(book_id: str, limit: int) -> dict[str, Any]:
         return {"items": []}
 
     review_ids = [str(r.get("reviews_id") or "").strip() for r in reviews if str(r.get("reviews_id") or "").strip()]
-    user_ids = [str(r.get("users_id") or "").strip() for r in reviews if str(r.get("users_id") or "").strip()]
+    user_ids = list({str(r.get("users_id") or "").strip() for r in reviews if str(r.get("users_id") or "").strip()})
 
     rating_map: dict[str, float] = {}
     if user_ids:
@@ -169,13 +169,20 @@ def get_book_comments(book_id: str, limit: int) -> dict[str, Any]:
         for row in (ures.data or []):
             user_map[str(row.get("users_id") or "")] = str(row.get("nickname") or "").strip()
 
-    reply_count_map: dict[str, int] = {}
-    like_count_map: dict[str, int] = {}
-    for rid in review_ids:
-        cres = sb.table("comments").select("comments_id", count="exact").eq("reviews_id", rid).execute()
-        lres = sb.table("review_likes").select("users_id", count="exact").eq("reviews_id", rid).execute()
-        reply_count_map[rid] = int(getattr(cres, "count", 0) or 0)
-        like_count_map[rid] = int(getattr(lres, "count", 0) or 0)
+    reply_count_map: dict[str, int] = {rid: 0 for rid in review_ids}
+    like_count_map: dict[str, int] = {rid: 0 for rid in review_ids}
+    if review_ids:
+        comments_res = sb.table("comments").select("reviews_id").in_("reviews_id", review_ids).execute()
+        for row in (comments_res.data or []):
+            rid = str(row.get("reviews_id") or "").strip()
+            if rid:
+                reply_count_map[rid] = reply_count_map.get(rid, 0) + 1
+
+        likes_res = sb.table("review_likes").select("reviews_id").in_("reviews_id", review_ids).execute()
+        for row in (likes_res.data or []):
+            rid = str(row.get("reviews_id") or "").strip()
+            if rid:
+                like_count_map[rid] = like_count_map.get(rid, 0) + 1
 
     items = []
     for review in reviews:
