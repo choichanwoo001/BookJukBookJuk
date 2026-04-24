@@ -395,6 +395,7 @@ class HybridRecommenderPipeline:
             top_k: 최종 추천 수
             reference_time: 기준 시각 (시간 감쇠 계산용)
             with_explanation: LLM 설명 생성 여부 (False 면 빠르게 동작)
+            verbose: True면 Phase 3 후보 수집·상위 점수 진단 출력
 
         Returns:
             ExplainedRecommendation 목록

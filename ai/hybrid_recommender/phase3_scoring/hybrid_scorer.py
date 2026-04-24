@@ -6,10 +6,10 @@ Final_Score = α × Graph_Score + (1-α) × Vector_Score
 - 프로파일 풍부 (많은 이력) → α 증가 → KG 그래프 점수 비중 높음
 - 콜드스타트 사용자 (이력 없음) → α 감소 → 벡터 유사도 의존
 
-후보 책 수집 전략:
-1. Vector Store: 쿼리 벡터 기반 유사 도서 top-N
-2. KG 확산: Seed 로부터 KG 상에서 도달 가능한 Book 노드들
-3. 두 집합을 합쳐 하이브리드 스코어링
+후보 책 수집 전략 (`_collect_candidates`):
+1. Vector Store: 시드 가중 평균 쿼리 벡터로 유사 도서 top-N
+2. KG 리플: Seed의 `book:isbn`에서 hop 확산해 Book 타입 노드 ISBN 추가
+3. 후보가 10개 미만이면 KG에 등록된 모든 Book ISBN을 폴백으로 추가
 """
 from __future__ import annotations
 
@@ -379,7 +379,10 @@ class HybridScorer:
         return out
 
     def _cold_start_recommend(self, n_results: int) -> list[ScoredBook]:
-        """행동 이력이 전혀 없는 완전 콜드스타트 사용자에게 전체 평균 벡터 기반 추천."""
+        """시드 ISBN이 없을 때 벡터 스토어에 있는 도서를 순서대로 폴백 후보로 반환한다.
+
+        점수는 플레이스홀더(그래프 0, 벡터·최종 0.5, alpha_used=0)이며 유사도 랭킹은 하지 않는다.
+        """
         all_books = self.vector_store._books
         if not all_books:
             return []

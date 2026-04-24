@@ -11,7 +11,7 @@ KG·임베딩은 DB에 영속된 경우 시작 시 로드합니다 (`HYBRID_PERS
 KG/벡터 DB 로드·영속은 `HYBRID_PERSIST_KG` / `HYBRID_PERSIST_EMBEDDINGS`(`.env.example` 참고).
 
 사용자 식별: 인자 생략 시 `HYBRID_CLI_SUPABASE_USER_ID` 환경 변수, 둘 다 없으면
-`dev_test_user_1`(시드 `seed_supabase_app_test_data.py` 기본값과 동일).
+`dev_test_user_1`(시드 `seed_supabase_core_demo.py` 기본 `--user-id` 와 동일).
 
 사용 예시:
     python hybrid_recommender_main.py
@@ -38,7 +38,7 @@ if _env.is_file():
 
 sys.path.insert(0, str(_AI_DIR))
 
-# `backend/scripts/seed_supabase_app_test_data.py` 의 DEFAULT_USER_KEY 와 맞춤 (단일 개발 사용자)
+# `backend/scripts/seed_supabase_core_demo.py` 의 DEFAULT_DEV_USER_ID 와 맞춤 (단일 개발 사용자)
 DEFAULT_SUPABASE_USER_ID = "dev_test_user_1"
 
 from hybrid_recommender import HybridRecommenderPipeline
