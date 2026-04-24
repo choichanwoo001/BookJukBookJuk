@@ -20,6 +20,8 @@
   python backend/scripts/seed_hybrid_recommender_e2e.py --isbn 9788937460470
   python backend/scripts/seed_hybrid_recommender_e2e.py --isbn 9788937460470 --cache-only
   python backend/scripts/seed_hybrid_recommender_e2e.py --isbn 9788937460470 9788936434120 --dry-run
+
+KG·book_vectors 구축은 별도: `cd ai && python build_hybrid_catalog.py` (사용자 이력 ISBN, HYBRID_PERSIST_KG=1)
 """
 from __future__ import annotations
 

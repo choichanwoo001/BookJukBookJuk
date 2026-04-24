@@ -3,12 +3,16 @@
 - public.books 는 INSERT 하지 않고, 기존 행에서 id·메타를 읽어 authors/book_authors·리뷰 등을 파생한다.
 - kg_*, book_vectors, books.embedding 은 건드리지 않는다.
 
+기본은 **단일 테스트 유저 `dev_test_user_1`** 한 명과 책 약 18권(10~20권 권장)이다.
+`build_hybrid_catalog.py` / `hybrid_recommender_main.py` 의 기본 Supabase 사용자와 맞춘다.
+
 환경: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (권장)
 
   python backend/scripts/seed_supabase_core_demo.py
-  python backend/scripts/seed_supabase_core_demo.py --dry-run
   python backend/scripts/seed_supabase_core_demo.py --replace
-  python backend/scripts/seed_supabase_core_demo.py --book-ids 978... 978...
+  python backend/scripts/seed_supabase_core_demo.py --replace --user-id dev_test_user_1 --book-sample-size 18
+
+다중 데모 유저(`demo_core_u_01` …)가 필요하면: `--users 2` 이상 (이때 `--user-id` 는 무시됨).
 """
 from __future__ import annotations
 
@@ -30,6 +34,10 @@ except ImportError:
     load_dotenv = None
 
 SEED_PREFIX = "demo_core"
+DEFAULT_DEV_USER_ID = "dev_test_user_1"
+BOOK_SAMPLE_DEFAULT = 18
+BOOK_SAMPLE_MIN = 10
+BOOK_SAMPLE_MAX = 20
 SHELF_TYPES = ("평가한", "읽은", "읽는중", "쇼핑리스트")
 SHELF_SLUGS = {
     "평가한": "rated",
@@ -130,9 +138,69 @@ def _delete_demo_rows(supabase, dry_run: bool) -> None:
     print("[OK] 기존 demo_core 행 정리")
 
 
+def _delete_rows_for_user_rebuild(supabase, users_id: str) -> None:
+    """FK 순서대로 해당 users_id 에 묶인 앱 행만 삭제 (books·stores·kg·authors 제외)."""
+    uid = (users_id or "").strip()
+    if not uid:
+        return
+
+    conv_res = supabase.table("conversation").select("conversation_id").eq("users_id", uid).execute()
+    conv_ids = [r["conversation_id"] for r in (conv_res.data or []) if r.get("conversation_id")]
+    for cid in conv_ids:
+        supabase.table("conversation_messages").delete().eq("conversation_id", cid).execute()
+    supabase.table("conversation").delete().eq("users_id", uid).execute()
+
+    rev_res = supabase.table("reviews").select("reviews_id").eq("users_id", uid).execute()
+    rev_ids = [r["reviews_id"] for r in (rev_res.data or []) if r.get("reviews_id")]
+    for rid in rev_ids:
+        supabase.table("comments").delete().eq("reviews_id", rid).execute()
+        supabase.table("review_likes").delete().eq("reviews_id", rid).execute()
+    supabase.table("review_likes").delete().eq("users_id", uid).execute()
+    supabase.table("comments").delete().eq("users_id", uid).execute()
+    supabase.table("reviews").delete().eq("users_id", uid).execute()
+
+    coll_res = supabase.table("collections").select("collections_id").eq("users_id", uid).execute()
+    cids = [r["collections_id"] for r in (coll_res.data or []) if r.get("collections_id")]
+    for cid in cids:
+        supabase.table("collection_books").delete().eq("collections_id", cid).execute()
+    supabase.table("collections").delete().eq("users_id", uid).execute()
+
+    sh_res = supabase.table("shelves").select("shelves_id").eq("users_id", uid).execute()
+    sids = [r["shelves_id"] for r in (sh_res.data or []) if r.get("shelves_id")]
+    for sid in sids:
+        supabase.table("shelf_books").delete().eq("shelves_id", sid).execute()
+    supabase.table("shelves").delete().eq("users_id", uid).execute()
+
+    supabase.table("ratings").delete().eq("users_id", uid).execute()
+    supabase.table("book_user_states").delete().eq("users_id", uid).execute()
+    supabase.table("users").delete().eq("users_id", uid).execute()
+
+
+def _resolve_user_ids(args: argparse.Namespace) -> tuple[list[str], bool]:
+    """(user_ids, user_id_arg_ignored). --users>1 이면 demo_core_u_XX 다중 유저."""
+    if args.users > 1:
+        n = min(15, args.users)
+        if (args.user_id or "").strip() not in ("", DEFAULT_DEV_USER_ID):
+            print(
+                f"[안내] --users={args.users} 이므로 --user-id 는 무시하고 "
+                f"{SEED_PREFIX}_u_01 … 를 사용합니다.",
+                file=sys.stderr,
+            )
+        return ([f"{SEED_PREFIX}_u_{i:02d}" for i in range(1, n + 1)], True)
+    uid = (args.user_id or DEFAULT_DEV_USER_ID).strip()
+    if not uid:
+        print("[오류] --user-id 가 비었습니다.", file=sys.stderr)
+        raise SystemExit(1)
+    return ([uid], False)
+
+
 def run(args: argparse.Namespace) -> None:
     _load_env()
     dry = args.dry_run
+    user_ids, _ = _resolve_user_ids(args)
+    n_users = len(user_ids)
+    n_books = max(BOOK_SAMPLE_MIN, min(BOOK_SAMPLE_MAX, args.book_sample_size))
+
     supabase = None if dry else _create_client()
 
     if dry:
@@ -140,12 +208,12 @@ def run(args: argparse.Namespace) -> None:
 
     if args.replace and not dry:
         assert supabase is not None
-        _delete_demo_rows(supabase, dry=False)
+        _delete_demo_rows(supabase, dry_run=False)
+        for uid in user_ids:
+            _delete_rows_for_user_rebuild(supabase, uid)
+        print(f"[OK] 대상 사용자 {len(user_ids)}명 행 삭제(재시드 준비)")
     elif args.replace and dry:
-        print("[dry-run] --replace 시 삭제 후 삽입 예정")
-
-    n_users = min(15, args.users)
-    n_books = min(30, args.book_sample_size)
+        print("[dry-run] --replace 시 demo_core 및 대상 사용자 행 삭제 후 삽입 예정")
 
     if dry:
         book_rows = []
@@ -178,7 +246,7 @@ def run(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
     if dry:
-        print(f"예상: users {n_users}명, 샘플 책 ~{n_books}권, authors 파생, …")
+        print(f"예상: users_id={user_ids}, 샘플 책 ≤{n_books}권, authors 파생, …")
         return
 
     assert supabase is not None
@@ -186,16 +254,16 @@ def run(args: argparse.Namespace) -> None:
     book_ids = list(books_meta.keys())
 
     # --- users ---
-    user_ids = [f"{SEED_PREFIX}_u_{i:02d}" for i in range(1, n_users + 1)]
     for i, uid in enumerate(user_ids, start=1):
+        is_single_dev = n_users == 1 and uid == DEFAULT_DEV_USER_ID
         supabase.table("users").upsert(
             {
                 "users_id": uid,
-                "username": f"demo_login_{i:02d}",
+                "username": "dev_test_login_1" if is_single_dev else f"demo_login_{i:02d}",
                 "password": "demo_not_for_prod",
-                "nickname": f"데모독자{i:02d}",
+                "nickname": "테스트독자1" if is_single_dev else f"데모독자{i:02d}",
                 "profile_image_url": None,
-                "bio": f"{SEED_PREFIX} 시드 계정",
+                "bio": "로컬·하이브리드 추천 테스트용 계정" if is_single_dev else f"{SEED_PREFIX} 시드 계정",
                 "preferred_genres": "소설,에세이",
             },
             on_conflict="users_id",
@@ -334,12 +402,12 @@ def run(args: argparse.Namespace) -> None:
         ).execute()
     print("[OK] book_user_states")
 
-    # --- reviews (최대 15, 책 메타 파생 본문) ---
-    n_rev = min(15, len(book_ids))
+    # --- reviews (단일 유저: 책 수에 맞춰 최대 BOOK_SAMPLE_MAX 권까지) ---
+    n_rev = min(len(book_ids), BOOK_SAMPLE_MAX) if n_users == 1 else min(15, len(book_ids))
     review_ids: list[str] = []
     for i in range(n_rev):
         bid = book_ids[i]
-        uid = user_ids[i % n_users]
+        uid = user_ids[0] if n_users == 1 else user_ids[i % n_users]
         rid = f"{SEED_PREFIX}_rev_{i+1:02d}"
         review_ids.append(rid)
         meta = {k: str(books_meta[bid].get(k) or "") for k in ("title", "description", "editorial_review")}
@@ -359,7 +427,7 @@ def run(args: argparse.Namespace) -> None:
     for i in range(n_rev):
         cid = f"{SEED_PREFIX}_cmt_{i+1:02d}"
         rid = review_ids[i]
-        replier = user_ids[(i + 1) % n_users]
+        replier = user_ids[0] if n_users == 1 else user_ids[(i + 1) % n_users]
         supabase.table("comments").upsert(
             {
                 "comments_id": cid,
@@ -373,7 +441,7 @@ def run(args: argparse.Namespace) -> None:
 
     # --- review_likes ---
     for i in range(n_rev):
-        uid = user_ids[(i + 2) % n_users]
+        uid = user_ids[0] if n_users == 1 else user_ids[(i + 2) % n_users]
         rid = review_ids[i]
         supabase.table("review_likes").upsert(
             {"users_id": uid, "reviews_id": rid},
@@ -388,9 +456,10 @@ def run(args: argparse.Namespace) -> None:
         top = kdc.split(">")[0].strip() if kdc else "이 책들"
         kdc_hints.setdefault(top, []).append(bid)
 
+    n_coll = min(len(book_ids), BOOK_SAMPLE_MAX) if n_users == 1 else min(15, n_users)
     coll_ids: list[str] = []
-    for i in range(min(15, n_users)):
-        uid = user_ids[i]
+    for i in range(n_coll):
+        uid = user_ids[0] if n_users == 1 else user_ids[i]
         cid = f"{SEED_PREFIX}_col_{i+1:02d}"
         coll_ids.append(cid)
         title_hint = list(kdc_hints.keys())[i % len(kdc_hints)] if kdc_hints else "추천 모음"
@@ -435,9 +504,10 @@ def run(args: argparse.Namespace) -> None:
     print("[OK] collection_books")
 
     # --- conversation + messages ---
-    for i in range(min(15, max(1, len(book_ids)))):
+    n_conv = min(len(book_ids), BOOK_SAMPLE_MAX) if n_users == 1 else min(15, max(1, len(book_ids)))
+    for i in range(n_conv):
         conv_id = f"{SEED_PREFIX}_conv_{i+1:02d}"
-        uid = user_ids[i % n_users]
+        uid = user_ids[0] if n_users == 1 else user_ids[i % n_users]
         is_book = i % 2 == 0
         bdetail = book_ids[i % len(book_ids)] if is_book else None
         ctype = "book_detail" if is_book else "agent"
@@ -478,22 +548,44 @@ def run(args: argparse.Namespace) -> None:
     print("[OK] conversation + conversation_messages")
 
     print()
-    print("완료. 예: GET /api/books/<id>/comments , /api/users/demo_core_u_01/collections")
+    ex_uid = user_ids[0]
+    print(f"완료. 예: GET /api/books/<id>/comments , /api/users/{ex_uid}/collections")
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Supabase 코어 데모 시드 (rebuild DDL)")
     p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--replace", action="store_true", help="demo_core_* 기존 행 삭제 후 재삽입")
-    p.add_argument("--users", type=int, default=15, help="데모 사용자 수 (최대 15)")
+    p.add_argument(
+        "--replace",
+        action="store_true",
+        help="demo_core_* 및 대상 users_id 행 삭제 후 재삽입",
+    )
+    p.add_argument(
+        "--user-id",
+        type=str,
+        default=DEFAULT_DEV_USER_ID,
+        help=f"단일 유저 모드(--users 1)일 때 users_id (기본 {DEFAULT_DEV_USER_ID})",
+    )
+    p.add_argument(
+        "--users",
+        type=int,
+        default=1,
+        help="데모 사용자 수. 1이면 --user-id 한 명만. 2 이상이면 demo_core_u_01… (최대 15)",
+    )
     p.add_argument(
         "--book-sample-size",
         type=int,
-        default=30,
-        help="--book-ids 없을 때 books 에서 가져올 최대 권수",
+        default=BOOK_SAMPLE_DEFAULT,
+        help=f"--book-ids 없을 때 books 에서 가져올 권수 ({BOOK_SAMPLE_MIN}~{BOOK_SAMPLE_MAX}로 클램프)",
     )
     p.add_argument("--book-ids", nargs="+", metavar="ID", help="도서 id(books.id) 목록; 없으면 order by id 로 샘플")
     args = p.parse_args()
+    if args.users < 1:
+        print("[오류] --users 는 1 이상이어야 합니다.", file=sys.stderr)
+        raise SystemExit(1)
+    if args.users > 15:
+        print("[오류] --users 는 최대 15 입니다.", file=sys.stderr)
+        raise SystemExit(1)
     run(args)
 
 
