@@ -21,60 +21,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
-
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    load_dotenv = None
 
 _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from book_catalog_db_limits import (
-    MAX_CHARS_ALADIN_COVER_URL,
-    MAX_CHARS_ALADIN_LONG_TEXT,
-    MAX_CHARS_ALADIN_MEDIUM_TEXT,
-    MAX_CHARS_KDC_CLASS_NM,
-    MAX_CHARS_KDC_CLASS_NO,
-    MAX_CHARS_PUBLISHED_YEAR,
-    MAX_CHARS_PUBLISHER,
-    clip,
-)
+from _seed_common import get_supabase_credentials, load_repo_env, row_for_db, upsert_books
 from book_catalog_filters import pick_per_sector, should_keep_book
 
 REPO = _SCRIPTS.parent.parent
 DEFAULT_JSON = REPO / "frontend" / "src" / "data" / "booksCatalog.json"
-BATCH = 500
-
-
-def _load_env() -> None:
-    if not load_dotenv:
-        return
-    p = REPO / ".env"
-    if p.is_file():
-        load_dotenv(p)
-
-
-def row_for_db(obj: dict) -> dict:
-    """필터·섹터 상한 적용 후 upsert. 길이는 `book_catalog_db_limits` (알라딘 기준과 sync 동일)."""
-    return {
-        "id": str(obj.get("id", "")),
-        "title": clip(obj.get("title"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
-        "authors": clip(obj.get("authors"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
-        "description": clip(obj.get("description"), MAX_CHARS_ALADIN_LONG_TEXT),
-        "author_bio": clip(obj.get("author_bio"), MAX_CHARS_ALADIN_MEDIUM_TEXT),
-        "editorial_review": clip(obj.get("editorial_review"), MAX_CHARS_ALADIN_LONG_TEXT),
-        "publisher": clip(obj.get("publisher"), MAX_CHARS_PUBLISHER),
-        "published_year": clip(str(obj.get("published_year") or ""), MAX_CHARS_PUBLISHED_YEAR),
-        "kdc_class_no": clip(obj.get("kdc_class_no"), MAX_CHARS_KDC_CLASS_NO),
-        "kdc_class_nm": clip(obj.get("kdc_class_nm"), MAX_CHARS_KDC_CLASS_NM),
-        "sector": int(obj.get("sector") or 0),
-        "cover_image_url": clip(obj.get("cover_image_url"), MAX_CHARS_ALADIN_COVER_URL),
-    }
 
 
 def main() -> int:
@@ -89,9 +47,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="DB 쓰기 없이 통계만 출력")
     args = ap.parse_args()
 
-    _load_env()
-    url = (os.environ.get("SUPABASE_URL") or "").strip()
-    key = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+    load_repo_env(REPO)
+    url, key = get_supabase_credentials()
     if not args.dry_run and (not url or not key):
         print("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment.", file=sys.stderr)
         return 1
@@ -143,7 +100,6 @@ def main() -> int:
     except ImportError:
         print("Install: pip install -r requirements.txt", file=sys.stderr)
         return 1
-
     client = create_client(url, key)
 
     print("기존 books 행 삭제 중…")
@@ -153,14 +109,9 @@ def main() -> int:
         print(f"Delete error: {e}", file=sys.stderr)
         return 1
 
-    for i in range(0, len(rows), BATCH):
-        chunk = rows[i : i + BATCH]
-        try:
-            client.table("books").upsert(chunk, on_conflict="id").execute()
-        except Exception as e:
-            print(f"Upsert error: {e}", file=sys.stderr)
-            return 1
-        print(f"Upserted {min(i + len(chunk), len(rows))} / {len(rows)}")
+    rc = upsert_books(client, rows, batch_size=500)
+    if rc != 0:
+        return rc
 
     print(f"완료. Supabase books = {len(rows)}권 (소스: {json_path})")
     return 0
