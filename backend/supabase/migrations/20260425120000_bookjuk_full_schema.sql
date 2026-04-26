@@ -1,61 +1,23 @@
--- BookJukBookJuk: 코어 스키마 재구성 (`public.books` 제외)
+-- BookJukBookJuk: 전체 코어 스키마 (단일 마이그레이션)
 --
--- - 아래에서 `public.books` 는 드롭하지 않습니다. (도서 카탈로그는 별도로 관리)
--- - 나머지 앱·KG 테이블은 드롭 후 이 파일에서 재생성합니다.
--- - 문자열 컬럼은 text 로 통일합니다.
--- - 단일 PK 는 `{테이블명}_id` 형식(예: users_id, authors_id)입니다. `public.books` 만 예외로 PK 는 `id`(init_books).
--- - 복합 PK·FK 는 참조 대상 PK 이름과 맞춥니다(authors_id, books_id, users_id, …).
--- - book_api_cache 는 자연키 `isbn` PK 유지, kg_edges 는 (src_id, dst_id, edge_key) 복합 PK 유지.
+-- 이전 분할 마이그레이션(init_books, app_schema, hybrid_kg, rebuild, truncate 수정,
+-- book_vectors upsert 인덱스)을 하나로 합친 최종 형태입니다.
 --
--- 선행: `public.books` 가 이미 있어야 하며, 도서 FK 는 카탈로그 PK 인 `books(id)` 를 참조합니다.
---       (자식 테이블 컬럼명은 `books_id` 로 두되, 참조 대상 열은 `init_books` 의 `id` 입니다.)
+-- 설계 요약:
+-- - public.books 만 PK 가 id (ISBN 등 텍스트). 나머지 단일 PK 는 {테이블}_id.
+-- - 문자열 컬럼은 text. 복합 PK·FK 는 참조 대상 PK 이름과 일치(users_id, books_id, …).
+-- - book_api_cache: 자연키 isbn PK. kg_edges: (src_id, dst_id, edge_key) 복합 PK.
+-- - book_vectors: supabase-py upsert(on_conflict='isbn') 대응 → isbn 전체 유니크 인덱스(부분 인덱스 아님).
+-- - clear_hybrid_kg: FK 때문에 kg_edges, kg_nodes 를 한 번의 TRUNCATE 로 비움.
 
 -- ---------------------------------------------------------------------------
--- 1) 기존 객체 제거 — books 제외 (의존 순서: 자식 → 부모)
--- ---------------------------------------------------------------------------
-drop function if exists public.clear_hybrid_kg() cascade;
-
-drop table if exists public.kg_edges cascade;
-drop table if exists public.kg_nodes cascade;
-
-drop table if exists public.conversation_messages cascade;
-drop table if exists public.conversation cascade;
-
-drop table if exists public.comments cascade;
-drop table if exists public.review_likes cascade;
-drop table if exists public.reviews cascade;
-
-drop table if exists public.shelf_books cascade;
-drop table if exists public.shelves cascade;
-
-drop table if exists public.collection_books cascade;
-drop table if exists public.collections cascade;
-
-drop table if exists public.book_user_states cascade;
-drop table if exists public.ratings cascade;
-
-drop table if exists public.book_authors cascade;
-
-drop table if exists public.book_vectors cascade;
-drop table if exists public.book_api_cache cascade;
-
-drop table if exists public.authors cascade;
-drop table if exists public.stores cascade;
-drop table if exists public.users cascade;
-
--- public.books 는 여기서 드롭하지 않음
-
-drop type if exists public.shelf_type_enum cascade;
-drop type if exists public.book_user_state_enum cascade;
-
--- ---------------------------------------------------------------------------
--- 2) 확장
+-- 확장
 -- ---------------------------------------------------------------------------
 create extension if not exists vector;
 create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------------------
--- 3) ENUM (PostgreSQL)
+-- ENUM
 -- ---------------------------------------------------------------------------
 do $$ begin
   create type public.shelf_type_enum as enum ('평가한', '읽은', '읽는중', '쇼핑리스트');
@@ -68,7 +30,32 @@ exception when duplicate_object then null;
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 4) 테이블 생성
+-- books (카탈로그; export_books_catalog.py 등과 컬럼 대응)
+-- ---------------------------------------------------------------------------
+create table public.books (
+  id text primary key,
+  title text not null default '',
+  authors text not null default '',
+  description text not null default '',
+  author_bio text not null default '',
+  editorial_review text not null default '',
+  publisher text not null default '',
+  published_year text not null default '',
+  kdc_class_no text not null default '',
+  kdc_class_nm text not null default '',
+  sector integer not null default 0,
+  cover_image_url text not null default '',
+  embedding vector(1536)
+);
+
+create index if not exists books_sector_idx on public.books (sector);
+
+-- 임베딩을 채운 뒤 유사도 검색 시 lists 튜닝 후 사용
+-- create index if not exists books_embedding_ivfflat
+--   on public.books using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+
+-- ---------------------------------------------------------------------------
+-- 앱·추천 테이블
 -- ---------------------------------------------------------------------------
 
 create table public.users (
@@ -85,8 +72,6 @@ create table public.users (
 
 comment on table public.users is '사용자';
 comment on column public.users.users_id is '사용자 ID';
-
--- public.books: 이 마이그레이션에서 생성/드롭하지 않음 (별도 init 또는 수동 스키마)
 
 create table public.authors (
   authors_id text not null,
@@ -231,7 +216,7 @@ create table public.book_vectors (
   constraint pk_book_vectors primary key (book_vectors_id)
 );
 
-create unique index if not exists book_vectors_isbn_unique on public.book_vectors (isbn) where isbn is not null;
+create unique index if not exists book_vectors_isbn_unique on public.book_vectors (isbn);
 
 create table public.collections (
   collections_id text not null,
@@ -280,7 +265,7 @@ create table public.stores (
 );
 
 -- ---------------------------------------------------------------------------
--- 5) 하이브리드 추천 KG
+-- 하이브리드 추천 KG (ai/hybrid_recommender/kg_supabase.py)
 -- ---------------------------------------------------------------------------
 create table public.kg_nodes (
   kg_nodes_id text not null primary key,
@@ -289,6 +274,7 @@ create table public.kg_nodes (
 );
 
 comment on table public.kg_nodes is '하이브리드 추천 LLM 추출 KG 노드 (NetworkX 노드 속성)';
+comment on column public.kg_nodes.attrs is 'type, label 등 NetworkX 노드 속성 전체';
 
 create table public.kg_edges (
   src_id text not null,
@@ -303,6 +289,8 @@ create table public.kg_edges (
   constraint fk_kg_edges_dst foreign key (dst_id) references public.kg_nodes (kg_nodes_id) on delete cascade
 );
 
+comment on table public.kg_edges is '하이브리드 추천 KG 멀티 엣지 (NetworkX MultiDiGraph)';
+
 create index if not exists kg_edges_src_idx on public.kg_edges (src_id);
 create index if not exists kg_edges_dst_idx on public.kg_edges (dst_id);
 
@@ -313,8 +301,7 @@ security definer
 set search_path = public
 as $$
 begin
-  truncate table public.kg_edges;
-  truncate table public.kg_nodes;
+  truncate table public.kg_edges, public.kg_nodes;
 end;
 $$;
 
@@ -324,11 +311,8 @@ revoke all on function public.clear_hybrid_kg() from public;
 grant execute on function public.clear_hybrid_kg() to service_role;
 
 -- ---------------------------------------------------------------------------
--- 6) RLS
+-- RLS
 -- ---------------------------------------------------------------------------
--- `20260411120000_init_books` / `20260413120000_app_schema_*` 에서 이미 만든 정책과
--- 이름이 겹칠 수 있으므로 멱등하게 드롭 후 재생성합니다.
-drop policy if exists books_select_public on public.books;
 alter table public.books enable row level security;
 create policy books_select_public
   on public.books
@@ -336,7 +320,6 @@ create policy books_select_public
   to anon, authenticated
   using (true);
 
-drop policy if exists authors_select_public on public.authors;
 alter table public.authors enable row level security;
 create policy authors_select_public
   on public.authors
@@ -344,7 +327,6 @@ create policy authors_select_public
   to anon, authenticated
   using (true);
 
-drop policy if exists book_authors_select_public on public.book_authors;
 alter table public.book_authors enable row level security;
 create policy book_authors_select_public
   on public.book_authors
@@ -352,7 +334,6 @@ create policy book_authors_select_public
   to anon, authenticated
   using (true);
 
-drop policy if exists stores_select_public on public.stores;
 alter table public.stores enable row level security;
 create policy stores_select_public
   on public.stores
