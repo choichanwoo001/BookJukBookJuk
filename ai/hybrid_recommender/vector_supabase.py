@@ -77,7 +77,7 @@ def upsert_all_book_vectors(supabase: Any, store: BookVectorStore) -> None:
         print(
             f"[오류] book_vectors upsert가 모두 실패했습니다 ({len(rows)}권 시도). "
             "DB에 `book_vectors(isbn)` 비부분 유니크 인덱스가 있는지 마이그레이션 "
-            "`20260419140000_book_vectors_unique_index_for_upsert.sql` 적용 여부를 확인하세요."
+            "`20260425120000_bookjuk_full_schema.sql`(book_vectors isbn 유니크) 적용 여부를 확인하세요."
         )
 
 

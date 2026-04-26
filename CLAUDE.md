@@ -40,7 +40,7 @@ python book_chat_main.py --title "데미안" --author "헤르만 헤세"
 # Hybrid recommender — KG·벡터 최초 구축: books 시드 후, 사용자 이력 ISBN으로 구축
 #   python backend/scripts/seed_hybrid_recommender_e2e.py --isbn <ISBN...>
 #   cd ai && python build_hybrid_catalog.py
-# Supabase 앱 코어 시드 (rebuild DDL; 기본 단일 users_id=dev_test_user_1, 책 ~18권):
+# Supabase 앱 코어 시드 (full_schema 마이그레이션 적용 후; 기본 단일 users_id=dev_test_user_1, 책 ~18권):
 #   python backend/scripts/seed_supabase_core_demo.py --replace
 # 추천 실행 (Supabase 이력; 기본 사용자 dev_test_user_1)
 python hybrid_recommender_main.py

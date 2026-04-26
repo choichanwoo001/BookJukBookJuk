@@ -6,10 +6,7 @@
 `--cache-only`: `public.books`는 건드리지 않고 `book_api_cache`만 upsert (이미 카탈로그가 채워진 경우 권장).
 
 선행 마이그레이션(저장소에 포함됨, Supabase 프로젝트에 적용 필요):
-  - `backend/supabase/migrations/20260411120000_init_books.sql`
-  - `backend/supabase/migrations/20260413120000_app_schema_mysql_compat.sql`
-  - `backend/supabase/migrations/20260414120000_hybrid_kg_tables.sql`
-  - `backend/supabase/migrations/20260414200000_shelves_user_id_varchar.sql` (shelves.user_id ↔ users.Key)
+  - `backend/supabase/migrations/20260425120000_bookjuk_full_schema.sql` (books·앱·KG·book_vectors 일괄)
 
 필요 환경 변수:
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (쓰기·RLS 우회 권장)

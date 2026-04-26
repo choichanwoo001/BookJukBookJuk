@@ -1,4 +1,4 @@
-"""Supabase 코어 데모 시드 (20260416 rebuild DDL).
+"""Supabase 코어 데모 시드 (bookjuk_full_schema DDL).
 
 - public.books 는 INSERT 하지 않고, 기존 행에서 id·메타를 읽어 authors/book_authors·리뷰 등을 파생한다.
 - kg_*, book_vectors, books.embedding 은 건드리지 않는다.
@@ -553,7 +553,7 @@ def run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Supabase 코어 데모 시드 (rebuild DDL)")
+    p = argparse.ArgumentParser(description="Supabase 코어 데모 시드 (bookjuk_full_schema DDL)")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument(
         "--replace",

@@ -11,8 +11,8 @@
 ## 2. SQL 적용
 
 1. 대시보드 → **SQL Editor** → New query
-2. 저장소의 `backend/supabase/migrations/20260411120000_init_books.sql` 내용을 붙여 넣고 **Run**
-3. **Database** → **Extensions**에서 `vector`가 켜져 있는지 확인 (마이그레이션에 `create extension` 포함)
+2. 저장소의 `backend/supabase/migrations/20260425120000_bookjuk_full_schema.sql` 내용을 붙여 넣고 **Run**
+3. **Database** → **Extensions**에서 `vector`·`pgcrypto`가 켜져 있는지 확인 (마이그레이션에 `create extension` 포함)
 
 ## 3. API 키 복사
 
