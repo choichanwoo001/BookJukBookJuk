@@ -1,4 +1,4 @@
-function buildApiUrl(path) {
+export function buildApiUrl(path) {
   const base = import.meta.env.VITE_API_BASE_URL ?? ''
   if (!base) return path
   return `${String(base).replace(/\/$/, '')}${path}`

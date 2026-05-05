@@ -4,42 +4,47 @@ import { Navigate } from 'react-router-dom'
 import { CHARACTER_IMG } from '../data/constants'
 import BackButton from '../components/BackButton'
 import { useChat } from '../hooks/useChat'
-import { fetchBookDetail } from '../data/bookApi'
+import { ensureBookChatSession, fetchBookDetail, streamBookChat } from '../data/bookApi'
 import './BookChat.css'
 
-/** 책 정보를 바탕으로 캐릭터의 목업 응답을 생성합니다. */
-function getMockResponse(book, userMessage) {
-  const msg = userMessage.toLowerCase().trim()
-  const greetings = ['안녕', 'hello', '하이', '반가', 'ㅎㅇ']
-
-  if (greetings.some((g) => msg.includes(g))) {
-    return `안녕하세요! 저는 이 책의 친구예요. ${book.title}에 대해 궁금한 게 있으시면 편하게 물어보세요!`
-  }
-  if (msg.includes('줄거리') || msg.includes('내용') || msg.includes('스토리')) {
-    return `${book.title}은 ${book.category} 분야의 작품이에요. ${book.pages}쪽 분량으로 읽기에 부담 없는 길이예요. 인기 코멘트를 보면 "${book.popularComments?.[0] || '많은 분들이 좋아하셨어요'}"라고 하시는 분이 많아요.`
-  }
-  if (msg.includes('작가') || msg.includes('저자')) {
-    return `이 책의 작가에 대해서는 아직 제가 자세히 알지 못해요. 하지만 ${book.category} 분야에서 쓰신 분이시에요. 더 알고 싶으시면 검색해 보시거나 서점에서 소개를 확인해 보세요!`
-  }
-  if (msg.includes('추천') || msg.includes('어때') || msg.includes('읽을만')) {
-    return `평균 별점 ${typeof book.rating === 'number' ? book.rating.toFixed(1) : book.rating}점이에요. "${book.popularComments?.[0] || '독자들이 좋아하는 책'}"이란 말씀이 많아요. ${book.ageRating} 연령이라 많은 분들이 읽으실 수 있어요.`
-  }
-  if (msg.includes('카테고리') || msg.includes('장르')) {
-    return `${book.title}은 ${book.category} 장르예요. ${book.pages}쪽, ${book.productionYear}년에 출간되었어요.`
-  }
-  if (msg.includes('감사') || msg.includes('고마') || msg.includes('thx')) {
-    return '천만에요! 더 궁금한 게 있으면 언제든 물어보세요. 책 읽는 즐거움이 가득하길 바랄게요!'
-  }
-  if (msg.includes('?')) {
-    return `${book.title}에 대한 질문이시군요. 제가 아는 범위에서 말씀드리면, 이 책은 ${book.category} 분야이고 ${book.pages}쪽 분량이에요. 구체적으로 어떤 부분이 궁금하신가요?`
-  }
-
-  return `${book.title}에 대해 관심 가져주셔서 감사해요. 줄거리, 작가, 추천 이유, 카테고리 같은 걸 물어보시면 더 자세히 말씀드릴 수 있어요!`
-}
-
 function BookChatInner({ book, id }) {
-  const { messages, input, setInput, isLoading, scrollRef, handleSend, handleKeyDown } =
-    useChat((text) => getMockResponse(book, text))
+  const [sessionStatus, setSessionStatus] = useState('building') // 'building' | 'ready' | 'error'
+  const [sessionError, setSessionError] = useState('')
+
+  const { messages, input, setInput, isLoading, scrollRef, handleSend, handleKeyDown } = useChat(
+    (text, helpers) =>
+      streamBookChat(id, text, {
+        onDelta: helpers.onDelta,
+        onDone: helpers.onDone,
+        onRejected: (rejectionText) => {
+          // 관련성 가드 탈락 → 거절 메시지를 일반 응답처럼 출력
+          helpers.onDone(rejectionText)
+        },
+        onError: helpers.onError,
+      }),
+  )
+
+  useEffect(() => {
+    if (!id) return undefined
+    let cancelled = false
+    setSessionStatus('building')
+    setSessionError('')
+    ensureBookChatSession(id)
+      .then(() => {
+        if (cancelled) return
+        setSessionStatus('ready')
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setSessionStatus('error')
+        setSessionError(err?.message || '세션 준비 실패')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  const sendDisabled = !input.trim() || isLoading || sessionStatus !== 'ready'
 
   return (
     <div className="book-chat-page">
@@ -58,6 +63,16 @@ function BookChatInner({ book, id }) {
         </div>
         <p className="book-chat-welcome-text">안녕하세요! 저는 이 책의 친구예요.</p>
         <p className="book-chat-welcome-sub">{book.title}에 대해 궁금한 점을 물어보세요.</p>
+        {sessionStatus === 'building' && (
+          <p className="book-chat-welcome-sub" style={{ opacity: 0.7 }}>
+            책 자료를 준비 중이에요... (최대 1분 정도 걸릴 수 있어요)
+          </p>
+        )}
+        {sessionStatus === 'error' && (
+          <p className="book-chat-welcome-sub" style={{ opacity: 0.8 }}>
+            세션 준비 실패: {sessionError}
+          </p>
+        )}
       </section>
 
       <div className="book-chat-messages" ref={scrollRef}>
@@ -72,24 +87,19 @@ function BookChatInner({ book, id }) {
               </div>
             )}
             <div className={`book-chat-bubble ${msg.role}`}>
-              <span>{msg.content}</span>
+              <span>{msg.content || (msg.role === 'assistant' && isLoading ? '•••' : '')}</span>
             </div>
           </div>
         ))}
 
         {messages.length === 0 && (
-          <p className="book-chat-empty-hint">메시지를 입력하면 대화가 시작돼요.</p>
-        )}
-
-        {isLoading && (
-          <div className="book-chat-bubble-wrap assistant">
-            <div className="book-chat-avatar">
-              <img src={CHARACTER_IMG} alt="캐릭터" />
-            </div>
-            <div className="book-chat-bubble assistant loading">
-              <span className="book-chat-typing">•••</span>
-            </div>
-          </div>
+          <p className="book-chat-empty-hint">
+            {sessionStatus === 'ready'
+              ? '메시지를 입력하면 대화가 시작돼요.'
+              : sessionStatus === 'building'
+                ? '책 자료를 준비 중이에요...'
+                : '세션을 준비할 수 없어요.'}
+          </p>
         )}
       </div>
 
@@ -98,18 +108,20 @@ function BookChatInner({ book, id }) {
           <input
             type="text"
             className="book-chat-input"
-            placeholder="메시지를 입력하세요"
+            placeholder={
+              sessionStatus === 'ready' ? '메시지를 입력하세요' : '준비 중이에요...'
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isLoading}
+            disabled={sessionStatus !== 'ready' || isLoading}
             maxLength={500}
           />
           <button
             type="button"
             className="book-chat-send"
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={sendDisabled}
             aria-label="보내기"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
