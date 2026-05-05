@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from typing import AsyncIterator
 
 from openai import AsyncOpenAI
 
@@ -102,6 +103,65 @@ class ChatSession:
         self.history.append(Message(role="assistant", content=answer))
 
         return answer
+
+    async def chat_stream(self, question: str) -> AsyncIterator[dict]:
+        """사용자 질문에 대한 답변을 스트리밍으로 yield 한다.
+
+        yield 되는 dict 의 형태:
+            {"type": "rejected", "text": <메시지>}     관련성 가드 탈락 시 1회만
+            {"type": "delta",    "text": <부분 토큰>}  답변 토큰이 도착할 때마다
+            {"type": "done",     "text": <최종 답변>}  스트림 종료 직전 1회
+
+        호출자는 도중에 비동기 generator 를 close 해도 안전하다.
+        """
+        if not await self._is_relevant(question):
+            rejection = REJECTION_MESSAGE.format(title=self.ctx.title)
+            yield {"type": "rejected", "text": rejection}
+            return
+
+        ctx_retrieved = await self.retriever.retrieve(question)
+        context_text = ctx_retrieved.to_prompt_text()
+
+        user_content = ANSWER_PROMPT_TEMPLATE.format(
+            context=context_text,
+            question=question,
+        )
+        messages: list[dict] = [{"role": "system", "content": self._system_prompt}]
+        for msg in self.history[-12:]:
+            messages.append({"role": msg.role, "content": msg.content})
+        messages.append({"role": "user", "content": user_content})
+
+        stream = await self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1024,
+            stream=True,
+        )
+
+        collected: list[str] = []
+        try:
+            async for event in stream:
+                if not event.choices:
+                    continue
+                delta = event.choices[0].delta
+                token = getattr(delta, "content", None)
+                if not token:
+                    continue
+                collected.append(token)
+                yield {"type": "delta", "text": token}
+        finally:
+            try:
+                await stream.close()
+            except Exception:
+                pass
+
+        answer = "".join(collected).strip()
+        if answer:
+            self.history.append(Message(role="user", content=question))
+            self.history.append(Message(role="assistant", content=answer))
+
+        yield {"type": "done", "text": answer}
 
     def reset_history(self) -> None:
         """대화 히스토리를 초기화한다."""

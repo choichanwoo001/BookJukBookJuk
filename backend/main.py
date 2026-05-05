@@ -7,6 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from backend.routers.book_chat import router as book_chat_router
 from backend.routers.books import router as books_router
 from backend.routers.collections import router as collections_router
 from backend.routers.sections import router as sections_router
@@ -23,6 +24,7 @@ app = FastAPI(title="BookJukBookJuk API", version="0.1.0")
 app.include_router(books_router)
 app.include_router(sections_router)
 app.include_router(collections_router)
+app.include_router(book_chat_router)
 
 
 @app.get("/health")
