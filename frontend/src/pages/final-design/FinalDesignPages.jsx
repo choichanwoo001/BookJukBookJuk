@@ -2,6 +2,8 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import {
+  Badge,
+  BackButton,
   BookCover,
   BookListItem,
   ChatBubble,
@@ -12,6 +14,7 @@ import {
   Icon,
   JourneyTimeline,
   MobileShell,
+  ReviewPromptCard,
   PaigeAvatar,
   PrimaryButton,
   SearchBar,
@@ -129,12 +132,8 @@ export function HomePage() {
         <Greeting />
         <main className="fd-scroll fd-home">
           <CurrentBookCard book={{ ...book, currentPage: book.pages }} complete />
-          <JourneyTimeline steps={completedJourneySteps} complete />
-          <section className="fd-prompt-card">
-            <h2><Icon name="sparkles" /> 리뷰를 남겨볼까요?</h2>
-            <p>Paige가 독서 기록을 정리해 리뷰에 담을 문장과 질문을 준비했어요.</p>
-            <PrimaryButton to={`/books/${bookId}/review`} icon="pencil">AI 도움으로 리뷰 쓰기</PrimaryButton>
-          </section>
+          <JourneyTimeline steps={completedJourneySteps} complete showReviewStep />
+          <ReviewPromptCard reviewHref={`/books/${bookId}/review`} />
         </main>
       </MobileShell>
     );
@@ -145,7 +144,7 @@ export function HomePage() {
       <Greeting />
       <main className="fd-scroll fd-home">
         <CurrentBookCard book={bookWithProgress} />
-        <JourneyTimeline steps={journey} currentSegment={currentSegment} onOpenStepDoubleClick={markCurrentSegmentRead} />
+        <JourneyTimeline steps={journey} currentSegment={currentSegment} onOpenStepDoubleClick={markCurrentSegmentRead} showReviewStep />
         <section className="fd-prompt-card">
           <h2><Icon name="sparkles" /> 지금 바로 시작해볼까요?</h2>
           <p>첫 페이지를 열면 독서 여정이 시작돼요. Paige가 함께 읽으며 요약과 질문을 준비해드릴게요.</p>
@@ -163,12 +162,8 @@ export function HomeCompletePage() {
       <Greeting />
       <main className="fd-scroll fd-home">
         <CurrentBookCard book={{ ...book, currentPage: book.pages }} complete />
-        <JourneyTimeline steps={completedJourneySteps} complete />
-        <section className="fd-prompt-card">
-          <h2><Icon name="sparkles" /> 리뷰를 남겨볼까요?</h2>
-          <p>Paige가 독서 기록을 정리해 리뷰에 담을 문장과 질문을 준비했어요.</p>
-          <PrimaryButton to={`/books/${bookId}/review`} icon="pencil">AI 도움으로 리뷰 쓰기</PrimaryButton>
-        </section>
+        <JourneyTimeline steps={completedJourneySteps} complete showReviewStep />
+        <ReviewPromptCard reviewHref={`/books/${bookId}/review`} />
       </main>
     </MobileShell>
   );
@@ -177,35 +172,60 @@ export function HomeCompletePage() {
 export function LibraryPage() {
   const [tab, setTab] = useState('읽는 중 3권');
   const tabs = ['읽는 중 3권', '완독 0권', '읽고 싶은 책 0권'];
+  const shelfBooks = [
+    { id: 'reading-1', icon: '🌱', title: '어른이 된다는 것', author: '김혜진', pages: 224, tone: 'brown' },
+    { id: 'reading-2', icon: '🌊', title: '오직 두 사람', author: '김영하', pages: 292, tone: 'blue' },
+    { id: 'reading-3', icon: '🌙', title: '단 한 사람', author: '정이현', pages: 256, tone: 'gold' },
+  ];
   return (
-    <MobileShell activeTab="library">
-      <Header title="나의 책장" subtitle="총 3권 · 완독 0권" right={<Link className="fd-icon-button" to="/books/search" aria-label="책 추가"><Icon name="plus" /></Link>} />
-      <main className="fd-scroll">
-        <div className="fd-segment">
+    <MobileShell activeTab="library" className="fd-library-page">
+      <header className="fd-library-header">
+        <div>
+          <h1>나의 책장</h1>
+          <p>총 3권 · 완독 0권</p>
+        </div>
+        <nav aria-label="책장 도구">
+          <Link to="/books/search" aria-label="검색"><Icon name="search" size={18} /></Link>
+          <button type="button" aria-label="정렬"><Icon name="slidersHorizontal" size={18} /></button>
+        </nav>
+      </header>
+      <main className="fd-library-scroll">
+        <div className="fd-library-tabs">
           {tabs.map((item) => (
             <button className={tab === item ? 'is-active' : ''} type="button" onClick={() => setTab(item)} key={item}>{item}</button>
           ))}
         </div>
-        <div className="fd-section-title">
-          <h2>{tab}</h2>
-          <span>최근 순</span>
+        <div className="fd-library-sort-row">
+          <span>{tab}</span>
+          <button type="button">최근 순 <Icon name="chevronDown" size={12} /></button>
         </div>
-        <div className="fd-library-list">
-          {bookCatalog.map((book, index) => (
-            <article className="fd-library-card" key={book.id}>
-              <BookCover icon={book.icon} tone={index === 0 ? 'brown' : 'blue'} />
-              <div>
-                <h3>{book.title}<em>{book.state}</em></h3>
-                <p>{book.author}</p>
-                <span>{book.progress} / {book.pages} 페이지</span>
-                <div className="fd-mini-progress"><i style={{ width: `${Math.max(Math.round((book.progress / book.pages) * 100), 2)}%` }} /></div>
-                <small>{book.note}</small>
+        <section className="fd-library-book-list">
+          {shelfBooks.map((book) => (
+            <article className="fd-shelf-card" key={book.id}>
+              <div className="fd-shelf-card-main">
+                <BookCover icon={book.icon} tone={book.tone} />
+                <div className="fd-shelf-info">
+                  <div className="fd-shelf-title-row">
+                    <h2>{book.title}</h2>
+                    <Badge>NEW</Badge>
+                    <button type="button" aria-label={`${book.title} 더 보기`}><Icon name="moreHorizontal" size={15} /></button>
+                  </div>
+                  <strong>{book.author}</strong>
+                  <div className="fd-shelf-progress">
+                    <span><i /></span>
+                    <p><em>0 / {book.pages} 페이지</em><b>0%</b></p>
+                  </div>
+                </div>
               </div>
-              <PrimaryButton to={`/books/${book.id}/home`} icon="play">시작하기</PrimaryButton>
+              <footer>
+                <span><Icon name="sparkles" size={12} /> 방금 추가된 책이에요</span>
+                <Link to={`/books/${book.id}/home`}><Icon name="play" size={11} /> 시작하기</Link>
+              </footer>
             </article>
           ))}
-        </div>
+        </section>
       </main>
+      <Link className="fd-library-fab" to="/books/search"><Icon name="plus" size={16} /> 새 책 추가하기</Link>
     </MobileShell>
   );
 }
@@ -252,27 +272,42 @@ export function HighlightPage() {
     navigate(`/books/${bookId}/summary`);
   };
   return (
-    <MobileShell showTabBar={false}>
-      <Header title="하이라이트 저장" backTo={`/books/${bookId}/chat`} />
-      <main className="fd-scroll">
-        <section className="fd-context-row">
-          <Chip icon="bookOpen">{book.title} · {currentSegment}구간</Chip>
-          <p>이 문장을 어떤 감정으로 기억할까요?</p>
+    <MobileShell showTabBar={false} className="fd-highlight-page">
+      <header className="fd-highlight-header">
+        <BackButton onClick={() => navigate(`/books/${bookId}/chat`)} />
+        <h1>하이라이트 저장</h1>
+        <span aria-hidden="true" />
+      </header>
+      <main className="fd-highlight-scroll">
+        <section className="fd-highlight-context">
+          <span className="fd-highlight-book-chip"><Icon name="bookOpen" size={13} /> {book.title} · {currentSegment}구간</span>
+          <p>이 문장을 저장하시겠어요?</p>
         </section>
-        <section className="fd-quote-card">
-          <blockquote>어른이 된다는 말을 들을수록 나는 어느 지점으로부터 멀어지는 것 같았다.</blockquote>
-          <cite>1장, 23p</cite>
+        <section className="fd-highlight-quote-card">
+          <blockquote>
+            "어른스럽다는 말을 들을수록<br />
+            나는 점점 나로부터 멀어지는<br />
+            것 같았다."
+          </blockquote>
+          <cite>- 1장, 23p</cite>
         </section>
-        <section className="fd-section">
-          <h2 className="fd-mini-title"><Icon name="quote" /> 감정 태그</h2>
-          <div className="fd-wrap">{['공감', '인상적', '다시 읽기', '질문'].map((tag, index) => <Chip selected={index < 2} key={tag}>{tag}</Chip>)}</div>
+        <section className="fd-highlight-section">
+          <h2 className="fd-highlight-section-title"><Icon name="bookmark" size={14} /> 감정 태그</h2>
+          <div className="fd-highlight-tags">
+            {['공감', '인상적', '다시읽기', '의문'].map((tag, index) => <Chip selected={index < 2} key={tag}>{tag}</Chip>)}
+          </div>
         </section>
-        <section className="fd-section">
-          <h2 className="fd-mini-title"><Icon name="pencil" /> 내 메모</h2>
-          <textarea className="fd-memo-box" defaultValue={"취약해질 때 자주 생각나는 문장.\n'어른답게'가 뭔지 다시 생각하게 된다."} />
+        <section className="fd-highlight-section">
+          <h2 className="fd-highlight-section-title"><Icon name="pencil" size={14} /> 내 메모</h2>
+          <label className="fd-highlight-memo-card">
+            <textarea defaultValue={"취준하면서 자꾸 생각나는 문장.\n'어른답게'가 뭔지 모르겠다."} aria-label="내 메모" />
+            <span>26자</span>
+          </label>
         </section>
-        <PrimaryButton icon="bookmark" onClick={saveHighlight}>저장하기</PrimaryButton>
       </main>
+      <footer className="fd-highlight-submit-bar">
+        <PrimaryButton icon="bookmark" onClick={saveHighlight}>저장하기</PrimaryButton>
+      </footer>
     </MobileShell>
   );
 }
@@ -280,35 +315,85 @@ export function HighlightPage() {
 export function SummaryPage() {
   const { book, bookId } = useSelectedBook();
   const navigate = useNavigate();
-  const { currentSegment, journey, markCurrentSegmentRead } = useBookProgress(bookId);
+  const { currentSegment, journey } = useBookProgress(bookId);
   const currentStep = journey[currentSegment - 1] || journey[0];
-  const completeToday = () => {
-    markCurrentSegmentRead();
-    navigate(`/books/${bookId}/home`);
-  };
+  const pageCountLabel = getPageCountLabel(currentStep.pages);
   return (
-    <MobileShell showTabBar={false}>
-      <Header title="오늘의 요약" backTo={`/books/${bookId}/highlight`} right={<button className="fd-soft-button" type="button" onClick={completeToday}>완료</button>} />
-      <main className="fd-scroll">
-        <section className="fd-summary-hero">
-          <p>2026.06.03</p>
-          <h2>{currentStep.pages} · {getPageCountLabel(currentStep.pages)}</h2>
-          <span>{book.title} · {currentSegment}구간 · {currentStep.subtitle}</span>
+    <MobileShell activeTab="library" className="fd-summary-page">
+      <header className="fd-summary-header">
+        <BackButton onClick={() => navigate(`/books/${bookId}/highlight`)} />
+        <h1>오늘의 요약</h1>
+        <span aria-hidden="true" />
+      </header>
+      <main className="fd-summary-scroll">
+        <section className="fd-summary-meta">
+          <div className="fd-summary-chip"><Icon name="calendar" size={12} /><span>2025.06.01</span></div>
+          <div className="fd-summary-chip"><Icon name="bookOpen" size={12} /><span>{currentStep.pages} · {pageCountLabel}</span></div>
         </section>
-        <section className="fd-ai-card">
-          <div><PaigeAvatar /><h2>Paige의 요약</h2><Chip selected>AI 요약</Chip></div>
-          <p>오늘 읽은 구간에서는 어른이 된다는 감각을 관계와 거리감 속에서 바라보는 장면이 중요하게 드러나요.</p>
+        <div className="fd-summary-book-line"><i /> {book.title} · {currentSegment}구간 · {currentStep.subtitle}</div>
+
+        <section className="fd-summary-card fd-paige-summary-card">
+          <div className="fd-summary-card-head">
+            <div><PaigeAvatar /><h2>Paige의 요약</h2></div>
+            <Badge>AI 요약</Badge>
+          </div>
+          <div className="fd-summary-divider" />
+          <div className="fd-summary-accent-body">
+            <i />
+            <p>오늘 읽은 {currentSegment}구간에서는 '어른이 된다는 것'이 단순히 나이를 먹는 일이 아니라, 관계 속에서 자신을 돌아보고 스스로를 어떻게 바라보는지가 더 중요하다는 흐름이 드러나요. 평범한 순간을 현실적으로 바라보는 시선이 인상적이며, 어른다움은 정답을 아는 상태보다 흔들리면서도 계속 살아가는 과정에 가깝게 느껴집니다.</p>
+          </div>
         </section>
-        <section className="fd-quote-card">
-          <h2>오늘의 하이라이트</h2>
-          <blockquote>어른이 된다는 말을 들을수록 나는 어느 지점으로부터 멀어지는 것 같았다.</blockquote>
-          <cite>1장, 23p</cite>
+
+        <section className="fd-summary-card fd-highlight-summary-card">
+          <h2><Icon name="quote" size={15} /> 오늘의 하이라이트</h2>
+          <div className="fd-highlight-box">
+            <div className="fd-summary-accent-body">
+              <i />
+              <blockquote>
+                <span>"어른스럽다는 말을 들을수록</span>
+                <span>나는 점점 나로부터 멀어지는 것 같았다"</span>
+              </blockquote>
+            </div>
+            <cite><Icon name="bookmark" size={12} /> 1장, 23p</cite>
+          </div>
         </section>
-        <section className="fd-section">
-          <h2 className="fd-mini-title">오늘의 키워드</h2>
-          <div className="fd-wrap">{['#자아', '#어른다움', '#관계', '#흔들림', '#자기이해'].map((tag) => <Chip selected key={tag}>{tag}</Chip>)}</div>
+
+        <section className="fd-summary-keywords">
+          <h2><span className="fd-summary-line-icon">◇</span> 오늘의 키워드</h2>
+          <div>
+            {['#자아', '#어른다움', '#관계', '#흔들림', '#자기이해'].map((tag, index) => (
+              <span className={index < 3 ? 'is-strong' : ''} key={tag}>{tag}</span>
+            ))}
+          </div>
         </section>
-        <PrimaryButton icon="check" onClick={completeToday}>오늘 기록 완료하기</PrimaryButton>
+
+        <section className="fd-summary-card fd-memo-summary-card">
+          <h2><Icon name="pencil" size={15} /> 오늘의 메모</h2>
+          <div className="fd-memo-summary-box">
+            <p>취준하면서 자꾸 생각나는 문장.<br />'어른답게'가 뭔지 모르겠다.</p>
+            <div><span>공감</span><span>인상적</span></div>
+          </div>
+        </section>
+
+        <section className="fd-summary-streak-card">
+          <div className="fd-streak-head">
+            <div>
+              <span className="fd-streak-icon">♨</span>
+              <section>
+                <h2>1일째</h2>
+                <p>독서 여정을 시작했어요</p>
+              </section>
+            </div>
+            <Badge icon="star">첫 기록</Badge>
+          </div>
+          <div className="fd-summary-divider" />
+          <div className="fd-streak-stats">
+            <span><Icon name="bookOpen" size={13} /> {pageCountLabel} 읽음</span>
+            <span><span className="fd-summary-line-icon">○</span> AI 대화 4회</span>
+            <span><Icon name="pencil" size={13} /> 1개 저장</span>
+          </div>
+          <p>오늘의 생각과 문장을 함께 기록했어요. 내일도 이어가볼까요?</p>
+        </section>
       </main>
     </MobileShell>
   );
@@ -365,7 +450,7 @@ export function SearchResultsPage() {
 export function CommunityPage() {
   const [tab, setTab] = useState('팔로잉');
   return (
-    <MobileShell activeTab="community">
+    <MobileShell activeTab="community" className="fd-community-page">
       <Header title="커뮤니티" subtitle="팔로우한 사람들의 독서 후기를 확인해보세요" searchTo="/community/search" right={<button className="fd-icon-button" type="button" aria-label="알림"><Icon name="bell" /></button>} />
       <main className="fd-scroll">
         <div className="fd-wrap">{['팔로잉', '추천', '평론가', '독자'].map((item) => <Chip selected={tab === item} onClick={() => setTab(item)} key={item}>{item}</Chip>)}</div>
@@ -435,18 +520,8 @@ export function AiReviewPage() {
 
   return (
     <MobileShell showTabBar={false} className="fd-ai-review-page">
-      <div className="fd-status-bar" aria-hidden="true">
-        <span>9:41</span>
-        <div>
-          <i className="fd-signal-icon" />
-          <i className="fd-wifi-icon" />
-          <i className="fd-battery-icon" />
-        </div>
-      </div>
       <header className="fd-review-header">
-        <button type="button" onClick={() => navigate(`/books/${bookId}/home-complete`)} aria-label="뒤로">
-          <Icon name="chevronLeft" size={17} />
-        </button>
+        <BackButton onClick={() => navigate(`/books/${bookId}/home-complete`)} />
         <h1>리뷰 작성</h1>
         <span>지</span>
       </header>
@@ -454,7 +529,7 @@ export function AiReviewPage() {
         <section className="fd-review-book-head">
           <div className="fd-review-cover" aria-hidden="true"><span /></div>
           <div>
-            <h2>어른이 된다는 것 <em>완독</em></h2>
+            <h2>어른이 된다는 것 <Badge>완독</Badge></h2>
             <p>김혜진 · 224페이지 · 1~5구간 완료</p>
           </div>
         </section>
@@ -463,7 +538,7 @@ export function AiReviewPage() {
           <div className="fd-review-panel-head">
             <PaigeAvatar />
             <h2>Paige가 우리 독서 대화를 돌아봤어요</h2>
-            <span>AI 회고</span>
+            <Badge>AI 회고</Badge>
           </div>
           <div className="fd-review-divider" />
           <div className="fd-memory-list">
@@ -491,7 +566,7 @@ export function AiReviewPage() {
           <div className="fd-review-panel-head">
             <PaigeAvatar />
             <h2>Paige의 리뷰 초안</h2>
-            <span><Icon name="sparkles" size={12} /> AI 생성</span>
+            <Badge icon="sparkles">AI 생성</Badge>
           </div>
           <div className="fd-review-divider" />
           <div className="fd-draft-box">
@@ -527,33 +602,26 @@ export function AiReviewPage() {
   );
 }
 
+const COMPLETION_JOURNEY = [
+  { title: '1구간 읽음', subtitle: '낯선 어른의 시작', pages: '1p - 45p' },
+  { title: '2구간 읽음', subtitle: '관계 속에서 흔들리는 나', pages: '46p - 90p' },
+  { title: '3구간 읽음', subtitle: '책임과 선택의 무게', pages: '91p - 135p' },
+  { title: '4구간 읽음', subtitle: '나만의 기준을 세우는 시간', pages: '136p - 180p' },
+  { title: '5구간 읽음', subtitle: '어른이 된다는 것의 의미', pages: '181p - 224p' },
+];
+
+const COMPLETION_KEYWORDS = ['#자아', '#억압', '#몸', '#저항', '#꿈', '#사회'];
+
 export function CompletionPage() {
-  const { bookId } = useSelectedBook();
+  const { book, bookId } = useSelectedBook();
   const navigate = useNavigate();
-  const journey = [
-    { title: '1구간 읽음', subtitle: '낯선 어른의 시작', pages: '1p ~ 45p' },
-    { title: '2구간 읽음', subtitle: '관계 속에서 흔들리는 나', pages: '46p ~ 90p' },
-    { title: '3구간 읽음', subtitle: '책임과 선택의 무게', pages: '91p ~ 135p' },
-    { title: '4구간 읽음', subtitle: '나만의 기준을 세우는 시간', pages: '136p ~ 180p' },
-    { title: '5구간 읽음', subtitle: '어른이 된다는 것의 의미', pages: '181p ~ 224p' },
-  ];
 
   return (
-    <MobileShell activeTab="record" className="fd-complete-page">
-      <div className="fd-status-bar" aria-hidden="true">
-        <span>9:41</span>
-        <div>
-          <i className="fd-signal-icon" />
-          <i className="fd-wifi-icon" />
-          <i className="fd-battery-icon" />
-        </div>
-      </div>
+    <MobileShell activeTab="library" className="fd-complete-page">
       <header className="fd-review-header fd-complete-header">
-        <button type="button" onClick={() => navigate(`/books/${bookId}/home-complete`)} aria-label="뒤로">
-          <Icon name="chevronLeft" size={17} />
-        </button>
+        <BackButton onClick={() => navigate(`/books/${bookId}/home-complete`)} />
         <h1>완독 완료</h1>
-        <button className="fd-share-button" type="button" aria-label="공유"><span /></button>
+        <button className="fd-icon-button" type="button" aria-label="공유"><Icon name="moreHorizontal" size={18} /></button>
       </header>
 
       <main className="fd-complete-scroll">
@@ -561,20 +629,20 @@ export function CompletionPage() {
           <div className="fd-sparkle-row" aria-hidden="true"><span>✨</span><span>☆</span><span>✨</span></div>
           <div className="fd-party-icon" aria-hidden="true">🎉</div>
           <h2>완독을 축하해요!</h2>
-          <p>어른이 된다는 것을 끝까지 함께 읽었어요.</p>
+          <p>{book.title}을 끝까지 함께 읽었어요.</p>
         </section>
 
         <section className="fd-complete-book-card">
           <div className="fd-complete-chips">
-            <span><i className="fd-mini-circle">⌄</i> 독서 완료</span>
-            <span><Icon name="calendar" size={12} /> 2026.05.22 완독</span>
+            <span><Icon name="check" size={12} /> 독서 완료</span>
+            <span><Icon name="calendar" size={12} /> 2024.05.22 완독</span>
           </div>
           <div className="fd-complete-book-main">
-            <div className="fd-flower-cover" aria-hidden="true">🌸</div>
+            <BookCover icon={book.icon} tone={book.tone || 'brown'} large />
             <div>
-              <h2>어른이 된다는 것</h2>
-              <strong>김혜진</strong>
-              <p>224페이지</p>
+              <h2>{book.title}</h2>
+              <strong>{book.author}</strong>
+              <p>{book.pages}페이지</p>
               <span>★★★★<i>☆</i> <b>4.0</b></span>
             </div>
           </div>
@@ -589,12 +657,12 @@ export function CompletionPage() {
           </div>
           <div className="fd-complete-section-head">
             <h3><Icon name="mapPin" size={15} /> 나의 독서 여정</h3>
-            <span>⌁ 5 / 5 구간 완료</span>
+            <span><Icon name="check" size={12} /> 5 / 5 구간 완료</span>
           </div>
           <div className="fd-complete-timeline">
-            {journey.map((step, index) => (
+            {COMPLETION_JOURNEY.map((step) => (
               <article className="fd-complete-step" key={step.title}>
-                <div><span>✓</span>{index < journey.length - 1 ? <i /> : null}</div>
+                <div><span>✓</span><i /></div>
                 <section>
                   <h4>{step.title}</h4>
                   <strong>{step.subtitle}</strong>
@@ -602,57 +670,68 @@ export function CompletionPage() {
                 </section>
               </article>
             ))}
-            <div className="fd-complete-timeline-line" />
+            <article className="fd-complete-step fd-complete-step--review-done">
+              <div><span><Icon name="pencil" size={10} /></span></div>
+              <section>
+                <h4>리뷰 남기기 <Badge icon="sparkles">AI가 도와줘요</Badge></h4>
+                <strong>Paige와 함께 리뷰 작성 완료</strong>
+              </section>
+            </article>
           </div>
         </section>
 
         <section className="fd-complete-panel fd-complete-ai-card">
           <div className="fd-complete-card-head">
-            <h2><span>✣</span> AI의 한마디</h2>
-            <em>+ AI</em>
+            <h2><span className="fd-complete-ai-icon" aria-hidden="true"><Icon name="sparkles" size={14} /></span> AI의 한마디</h2>
+            <Badge>+ AI</Badge>
           </div>
-          <p>이 책을 읽으며 당신은 인물의 선택과 사회적 시선에 대해 깊이 생각했어요. 기록 속 키워드는 '자아', '억압', '물', '저항'이 가장 많이 등장했어요.</p>
-          <small>✣ 12일간의 독서 기록을 분석했어요</small>
+          <p>이 책을 읽으며 당신은 인물의 선택과 사회적 시선에 대해 깊이 생각했어요. 기록 속 키워드는 &apos;자아&apos;, &apos;억압&apos;, &apos;몸&apos;, &apos;저항&apos;이 가장 많이 등장했어요.</p>
+          <small><Icon name="sparkles" size={12} /> 12일간의 독서 기록을 분석했어요</small>
         </section>
 
         <section className="fd-complete-panel fd-one-line-review">
           <div className="fd-complete-card-head">
-            <h2>〃 나의 한 줄 평</h2>
-            <em><Icon name="pencil" size={12} /> 수정</em>
+            <h2><Icon name="quote" size={15} /> 나의 한 줄 평</h2>
+            <Badge icon="pencil">수정</Badge>
           </div>
           <blockquote>이해받지 못한 선택이 한 사람의 삶을 어떻게 바꾸는지 보여주는 책.</blockquote>
         </section>
 
         <section className="fd-complete-panel fd-keyword-card">
           <div className="fd-complete-card-head">
-            <h2><span className="fd-tag-mark">◇</span> 많이 남긴 키워드</h2>
-            <em>6개</em>
+            <h2><span className="fd-hash-mark">#</span> 많이 남긴 키워드</h2>
+            <Badge>6개</Badge>
           </div>
           <div>
-            {['#자아', '#억압', '#물', '#저항', '#꿈', '#사회'].map((tag) => <span key={tag}>{tag}</span>)}
+            {COMPLETION_KEYWORDS.map((tag) => <span key={tag}>{tag}</span>)}
           </div>
         </section>
 
         <section className="fd-complete-panel fd-next-card">
-          <h2>→ 다음으로</h2>
+          <h2><Icon name="chevronRight" size={15} /> 다음으로</h2>
           <div>
             <Link to={`/books/${bookId}/home-complete`}>
-              <span className="fd-next-icon is-green">|||</span>
-              <strong>완독 기록 확인하기</strong>
-              <p>완독 탭에서 기록 보기</p>
+              <span className="fd-next-icon is-green"><Icon name="bookmark" size={16} /></span>
+              <div>
+                <strong>완독 기록 확인하기</strong>
+                <p>완독 탭에서 기록 보기</p>
+              </div>
               <Icon name="chevronRight" size={14} />
             </Link>
             <Link to="/books/search">
-              <span className="fd-next-icon">✣</span>
-              <strong>비슷한 책 추천받기</strong>
-              <p>AI가 고른 다음 책 보기</p>
+              <span className="fd-next-icon"><Icon name="sparkles" size={16} /></span>
+              <div>
+                <strong>비슷한 책 추천받기</strong>
+                <p>AI가 고른 다음 책 보기</p>
+              </div>
               <Icon name="chevronRight" size={14} />
             </Link>
           </div>
         </section>
-
-        <PrimaryButton to={`/books/${bookId}/home-complete`} icon="star">완독 기록 보기</PrimaryButton>
       </main>
+      <footer className="fd-review-submit-bar fd-complete-submit-bar">
+        <PrimaryButton to={`/books/${bookId}/home-complete`} icon="star">완독 기록 보기</PrimaryButton>
+      </footer>
     </MobileShell>
   );
 }

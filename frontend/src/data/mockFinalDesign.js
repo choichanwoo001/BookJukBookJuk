@@ -54,9 +54,14 @@ export const communityPosts = [
     date: '2025.06.01',
     avatar: '지',
     book: { icon: '💜', title: '사랑받지 못하는 나를 위한 위로', author: '무라카미 류', rating: '4.0' },
-    review: '화려하지 않아도 괜찮다는 말을 이렇게 조용히 해주는 책은 흔치 않다',
-    traces: ['18일 꾸준히', '대화 23회', '하이라이트 9개'],
-    quote: '사랑은 완성형이 아니라 진행형이다',
+    review: '"화려하지 않아도 괜찮다는 말을 이렇게 조용히 해주는 책은 흔치 않다"',
+    traces: [
+      { label: '18일 꾸준히', icon: 'calendar' },
+      { label: '대화 23회', icon: 'quote' },
+      { label: '하이라이트 9개', icon: 'pencil' },
+    ],
+    quote: '"사랑은 완성형이 아니라 진행형이다"',
+    spoiler: '주인공이 마지막 장에서 관계를 끝내는 대신 자기 마음을 처음으로 직접 말하는 장면이 오래 남았어요.',
   },
   {
     user: '서윤',
@@ -64,9 +69,14 @@ export const communityPosts = [
     date: '2025.05.29',
     avatar: '서',
     book: { icon: '🦋', title: '작별하지 않는다', author: '한강', rating: '5.0' },
-    review: '읽고 나서 오래 남는 침묵이 있는 책이었다',
-    traces: ['12일 꾸준히', '대화 14회', '하이라이트 6개'],
-    quote: '기억은 사라지는 것이 아니라 견디는 것이다',
+    review: '"읽고 나서 오래 남는 침묵이 있는 책이었다"',
+    traces: [
+      { label: '12일 꾸준히', icon: 'calendar' },
+      { label: '대화 14회', icon: 'quote' },
+      { label: '하이라이트 6개', icon: 'pencil' },
+    ],
+    quote: '"기억은 사라지는 것이 아니라 견디는 것이다"',
+    spoiler: '후반부의 방문 장면에서 개인의 상실과 역사적 기억이 겹쳐지는 방식이 가장 강하게 다가왔어요.',
   },
 ];
 

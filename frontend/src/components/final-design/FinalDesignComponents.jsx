@@ -1,10 +1,12 @@
-﻿import { Link, NavLink, useNavigate } from 'react-router-dom';
+﻿import { useState } from 'react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 
 import bell from '../../assets/figma/bell.svg';
 import bookOpen from '../../assets/figma/book-open.svg';
 import bookmark from '../../assets/figma/bookmark.svg';
 import calendar from '../../assets/figma/calendar.svg';
 import check from '../../assets/figma/check.svg';
+import chevronDown from '../../assets/figma/chevron-down.svg';
 import chevronLeft from '../../assets/figma/chevron-left.svg';
 import chevronRight from '../../assets/figma/chevron-right.svg';
 import clock from '../../assets/figma/clock.svg';
@@ -13,12 +15,14 @@ import layers from '../../assets/figma/layers.svg';
 import library from '../../assets/figma/library.svg';
 import lock from '../../assets/figma/lock.svg';
 import mapPin from '../../assets/figma/map-pin.svg';
+import moreHorizontal from '../../assets/figma/more-horizontal.svg';
 import pencil from '../../assets/figma/pencil.svg';
 import play from '../../assets/figma/play.svg';
 import plus from '../../assets/figma/plus.svg';
 import quote from '../../assets/figma/quote.svg';
 import search from '../../assets/figma/search.svg';
 import send from '../../assets/figma/send.svg';
+import slidersHorizontal from '../../assets/figma/sliders-horizontal.svg';
 import sparkles from '../../assets/figma/sparkles.svg';
 import star from '../../assets/figma/star.svg';
 import users from '../../assets/figma/users.svg';
@@ -30,6 +34,7 @@ export const icons = {
   bookmark,
   calendar,
   check,
+  chevronDown,
   chevronLeft,
   chevronRight,
   clock,
@@ -38,12 +43,14 @@ export const icons = {
   library,
   lock,
   mapPin,
+  moreHorizontal,
   pencil,
   play,
   plus,
   quote,
   search,
   send,
+  slidersHorizontal,
   sparkles,
   star,
   users,
@@ -63,16 +70,20 @@ export function MobileShell({ children, showTabBar = true, activeTab = 'home', c
   );
 }
 
+export function BackButton({ onClick, size = 16 }) {
+  return (
+    <button className="fd-back-button" type="button" onClick={onClick} aria-label="뒤로">
+      <Icon name="chevronLeft" size={size} />
+    </button>
+  );
+}
+
 export function Header({ title, subtitle, backTo, right, profile = false, searchTo }) {
   const navigate = useNavigate();
   return (
     <header className="fd-header">
       <div className="fd-header-left">
-        {backTo ? (
-          <button className="fd-icon-button" type="button" onClick={() => navigate(backTo)} aria-label="뒤로">
-            <Icon name="chevronLeft" />
-          </button>
-        ) : null}
+        {backTo ? <BackButton onClick={() => navigate(backTo)} /> : null}
         <div>
           <h1>{title}</h1>
           {subtitle ? <p>{subtitle}</p> : null}
@@ -123,6 +134,16 @@ export function Chip({ children, icon, selected = false, onClick }) {
       {icon ? <Icon name={icon} size={13} /> : null}
       <span>{children}</span>
     </button>
+  );
+}
+
+export function Badge({ children, icon, tone = 'warm' }) {
+  const badgeIcon = icon === 'star' ? <span className="fd-badge-symbol" aria-hidden="true">★</span> : icon ? <Icon name={icon} size={11} /> : null;
+  return (
+    <span className={`fd-badge fd-badge--${tone}`}>
+      {badgeIcon}
+      <span>{children}</span>
+    </span>
   );
 }
 
@@ -179,13 +200,45 @@ export function CurrentBookCard({ book, complete = false }) {
       </div>
       <div className="fd-card-foot">
         <span><Icon name="bookOpen" size={12} /> {complete ? book.pages : book.currentPage} / {book.pages} 페이지</span>
-        <span>{complete ? '오늘 완독' : '오늘 시작'}</span>
+        <div className="fd-card-foot-actions">
+          <span><Icon name="calendar" size={12} /> {complete ? '오늘 완독' : '오늘 시작'}</span>
+          <span>{complete ? '리뷰 작성 전' : 'D+0'}</span>
+        </div>
       </div>
     </section>
   );
 }
 
-export function JourneyTimeline({ steps, complete = false, currentSegment = 1, onOpenStepDoubleClick }) {
+const REVIEW_TIMELINE_COPY = {
+  title: '리뷰 남기기',
+  description: 'Paige가 1~5구간 대화와 하이라이트를 바탕으로 리뷰 작성을 도와줄게요',
+};
+
+export function ReviewPromptCard({ reviewHref }) {
+  return (
+    <section className="fd-prompt-card">
+      <h2><Icon name="sparkles" /> 이제 리뷰를 남겨볼까요?</h2>
+      <p>
+        1~5구간 동안 나눈 AI 대화와 저장한 하이라이트를 바탕으로 리뷰를 정리할 수 있어요. Paige가 과거 대화
+        기록 기반으로 리뷰 초안을 함께 만들어줄게요.
+      </p>
+      <PrimaryButton to={reviewHref} icon="pencil">
+        AI와 리뷰 쓰기
+      </PrimaryButton>
+    </section>
+  );
+}
+
+export function JourneyTimeline({
+  steps,
+  complete = false,
+  currentSegment = 1,
+  onOpenStepDoubleClick,
+  showReviewStep = false,
+}) {
+  const allReadingDone = steps.length > 0 && steps.every((step) => step.state === 'done');
+  const reviewState = allReadingDone ? 'active' : 'locked';
+
   return (
     <section className="fd-section">
       <div className="fd-section-title">
@@ -205,7 +258,7 @@ export function JourneyTimeline({ steps, complete = false, currentSegment = 1, o
           >
             <div className="fd-timeline-rail">
               <span>{step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'active' ? <Icon name="star" size={12} /> : <Icon name="lock" size={11} />}</span>
-              {index < steps.length - 1 ? <i /> : null}
+              <i />
             </div>
             <div>
               <h3>{step.title}{step.state === 'active' ? <em>현재 위치</em> : null}</h3>
@@ -214,6 +267,22 @@ export function JourneyTimeline({ steps, complete = false, currentSegment = 1, o
             </div>
           </article>
         ))}
+        {showReviewStep ? (
+          <article className={`fd-timeline-step fd-timeline-step--review is-${reviewState}`}>
+            <div className="fd-timeline-rail">
+              <span>
+                {reviewState === 'active' ? <Icon name="pencil" size={12} /> : <Icon name="lock" size={11} />}
+              </span>
+            </div>
+            <div>
+              <h3>
+                {REVIEW_TIMELINE_COPY.title}
+                <Badge icon="sparkles">AI가 도와줘요</Badge>
+              </h3>
+              <p>{REVIEW_TIMELINE_COPY.description}</p>
+            </div>
+          </article>
+        ) : null}
       </div>
     </section>
   );
@@ -255,6 +324,9 @@ export function ChatBubble({ message }) {
 }
 
 export function CommunityPost({ post }) {
+  const [spoilerVisible, setSpoilerVisible] = useState(false);
+  const traces = post.traces.map((trace) => (typeof trace === 'string' ? { label: trace, icon: 'calendar' } : trace));
+
   return (
     <article className="fd-community-card">
       <div className="fd-reviewer-row">
@@ -274,10 +346,26 @@ export function CommunityPost({ post }) {
         </div>
       </div>
       <blockquote>{post.review}</blockquote>
+      <h5 className="fd-community-label"><Icon name="layers" size={13} /> 읽은 흔적</h5>
       <div className="fd-traces">
-        {post.traces.map((trace) => <Chip icon="calendar" key={trace}>{trace}</Chip>)}
+        {traces.map((trace) => <Chip icon={trace.icon || 'calendar'} key={trace.label}>{trace.label}</Chip>)}
       </div>
-      <div className="fd-quote-line"><Icon name="quote" size={13} /> {post.quote}</div>
+      <h5 className="fd-community-label"><Icon name="quote" size={13} /> 하이라이트 미리보기</h5>
+      <div className="fd-quote-line">
+        <i />
+        <span>{post.quote}</span>
+      </div>
+      {post.spoiler ? (
+        <button
+          className={`fd-spoiler-preview ${spoilerVisible ? 'is-visible' : ''}`}
+          type="button"
+          onClick={() => setSpoilerVisible((visible) => !visible)}
+          aria-expanded={spoilerVisible}
+        >
+          <span className="fd-spoiler-content">{post.spoiler}</span>
+          {!spoilerVisible ? <strong>스포 내용 보기</strong> : null}
+        </button>
+      ) : null}
       <div className="fd-card-actions">
         <button type="button"><Icon name="bookmark" size={14} /> 책장에 담기</button>
         <button type="button"><Icon name="search" size={14} /> 리뷰 전체보기</button>
