@@ -2332,7 +2332,7 @@ a {
   flex: 1;
   flex-direction: column;
   gap: var(--space-5);
-  padding: 0 var(--space-6) 7.5rem;
+  padding: 0 var(--space-6) 5.875rem;
   overflow: hidden auto;
 }
 
@@ -2801,14 +2801,11 @@ a {
   line-height: 1;
 }
 
-.fd-complete-submit-bar {
-  bottom: 4.5rem;
-  z-index: 10;
-  padding-bottom: var(--space-3);
-  background: linear-gradient(180deg, transparent, var(--color-review-page) 30%);
+.fd-complete-action {
+  padding-top: var(--space-2);
 }
 
-.fd-complete-submit-bar .fd-primary-button {
+.fd-complete-action .fd-primary-button {
   min-height: 3.5rem;
   border-radius: var(--radius-2xl);
   font-size: var(--font-size-base);

@@ -728,10 +728,10 @@ export function CompletionPage() {
             </Link>
           </div>
         </section>
+        <div className="fd-complete-action">
+          <PrimaryButton to={`/books/${bookId}/home-complete`} icon="star">완독 기록 보기</PrimaryButton>
+        </div>
       </main>
-      <footer className="fd-review-submit-bar fd-complete-submit-bar">
-        <PrimaryButton to={`/books/${bookId}/home-complete`} icon="star">완독 기록 보기</PrimaryButton>
-      </footer>
     </MobileShell>
   );
 }
