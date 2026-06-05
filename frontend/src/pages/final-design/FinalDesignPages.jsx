@@ -223,9 +223,9 @@ export function LibraryPage() {
               </footer>
             </article>
           ))}
+          <Link className="fd-library-add-button" to="/books/search"><Icon name="plus" size={16} /> 새 책 추가하기</Link>
         </section>
       </main>
-      <Link className="fd-library-fab" to="/books/search"><Icon name="plus" size={16} /> 새 책 추가하기</Link>
     </MobileShell>
   );
 }

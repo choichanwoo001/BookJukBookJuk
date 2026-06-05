@@ -759,7 +759,7 @@ a {
   flex-direction: column;
   gap: var(--space-3);
   min-height: calc(100vh - 7.25rem);
-  padding: var(--space-2) var(--space-6) 8.25rem;
+  padding: var(--space-2) var(--space-6) var(--space-8);
   overflow: hidden auto;
 }
 
@@ -957,16 +957,14 @@ a {
   box-shadow: var(--shadow-control);
 }
 
-.fd-library-fab {
-  position: fixed;
-  right: var(--space-9);
-  bottom: 5.25rem;
-  z-index: 25;
+.fd-library-add-button {
   display: inline-flex;
+  align-self: center;
   min-height: 2.875rem;
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
+  margin-top: var(--space-2);
   padding: 0 var(--space-7);
   border-radius: var(--radius-pill);
   background: linear-gradient(198deg, var(--color-brand-warm-light), var(--color-accent));
