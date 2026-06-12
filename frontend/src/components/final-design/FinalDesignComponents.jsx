@@ -1,6 +1,9 @@
-﻿import { useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 
+import { StreamingText } from './StreamingText.jsx';
+
+import alertCircle from '../../assets/figma/alert-circle.svg';
 import bell from '../../assets/figma/bell.svg';
 import bookOpen from '../../assets/figma/book-open.svg';
 import bookmark from '../../assets/figma/bookmark.svg';
@@ -29,6 +32,7 @@ import users from '../../assets/figma/users.svg';
 import xIcon from '../../assets/figma/x.svg';
 
 export const icons = {
+  alertCircle,
   bell,
   bookOpen,
   bookmark,
@@ -98,9 +102,9 @@ export function Header({ title, subtitle, backTo, right, profile = false, search
         {right}
         {profile ? (
           <>
-            <button className="fd-icon-button" type="button" aria-label="알림">
+            <Link className="fd-icon-button" to="/demo/phone-home" aria-label="알림">
               <Icon name="bell" />
-            </button>
+            </Link>
             <Link className="fd-avatar" to="/books/reading-1/completion">지</Link>
           </>
         ) : null}
@@ -137,27 +141,47 @@ export function Chip({ children, icon, selected = false, onClick }) {
   );
 }
 
-export function Badge({ children, icon, tone = 'warm' }) {
+export function Badge({ children, icon, tone = 'warm', onClick, disabled = false }) {
   const badgeIcon = icon === 'star' ? <span className="fd-badge-symbol" aria-hidden="true">★</span> : icon ? <Icon name={icon} size={11} /> : null;
-  return (
-    <span className={`fd-badge fd-badge--${tone}`}>
-      {badgeIcon}
-      <span>{children}</span>
-    </span>
-  );
-}
-
-export function PrimaryButton({ children, icon = 'play', to, onClick, variant = 'primary' }) {
+  const className = `fd-badge fd-badge--${tone}${onClick ? ' fd-badge--action' : ''}`;
   const content = (
     <>
-      {icon ? <Icon name={icon} size={18} /> : null}
+      {badgeIcon}
       <span>{children}</span>
     </>
   );
-  if (to) {
+
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick} disabled={disabled}>
+        {content}
+      </button>
+    );
+  }
+
+  return <span className={className}>{content}</span>;
+}
+
+export function PrimaryButton({ children, icon = 'play', to, onClick, variant = 'primary', disabled = false, loading = false }) {
+  const content = (
+    <>
+      {loading ? <span className="fd-button-spinner" aria-hidden="true" /> : icon ? <Icon name={icon} size={18} /> : null}
+      <span>{children}</span>
+    </>
+  );
+  if (to && !disabled && !loading) {
     return <Link className={`fd-primary-button fd-primary-button--${variant}`} to={to}>{content}</Link>;
   }
-  return <button className={`fd-primary-button fd-primary-button--${variant}`} type="button" onClick={onClick}>{content}</button>;
+  return (
+    <button
+      className={`fd-primary-button fd-primary-button--${variant} ${loading ? 'is-loading' : ''}`}
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+    >
+      {content}
+    </button>
+  );
 }
 
 export function SearchBar({ value, placeholder, onChange, onSubmit }) {
@@ -233,11 +257,25 @@ export function JourneyTimeline({
   steps,
   complete = false,
   currentSegment = 1,
-  onOpenStepDoubleClick,
+  onStepDoubleClick,
   showReviewStep = false,
 }) {
   const allReadingDone = steps.length > 0 && steps.every((step) => step.state === 'done');
   const reviewState = allReadingDone ? 'active' : 'locked';
+  const activeIndex = steps.findIndex((step) => step.state === 'active');
+  const prevActiveIndexRef = useRef(activeIndex);
+  const [openedIndex, setOpenedIndex] = useState(-1);
+
+  useEffect(() => {
+    if (activeIndex > prevActiveIndexRef.current) {
+      setOpenedIndex(activeIndex);
+      const timer = setTimeout(() => setOpenedIndex(-1), 2400);
+      prevActiveIndexRef.current = activeIndex;
+      return () => clearTimeout(timer);
+    }
+    prevActiveIndexRef.current = activeIndex;
+    return undefined;
+  }, [activeIndex]);
 
   return (
     <section className="fd-section">
@@ -249,24 +287,29 @@ export function JourneyTimeline({
         </span>
       </div>
       <div className="fd-timeline-card">
-        {steps.map((step, index) => (
+        {steps.map((step, index) => {
+          const isJustOpened = step.state === 'active' && index === openedIndex;
+          return (
           <article
-            className={`fd-timeline-step is-${step.state}`}
+            className={`fd-timeline-step is-${step.state}${isJustOpened ? ' is-opening' : ''}`}
             key={step.title}
-            onDoubleClick={step.state === 'active' ? () => onOpenStepDoubleClick?.(index) : undefined}
-            title={step.state === 'active' ? '더블클릭하면 이 구간을 읽음 처리합니다' : undefined}
+            onDoubleClick={step.state === 'active' ? () => onStepDoubleClick?.() : undefined}
           >
             <div className="fd-timeline-rail">
               <span>{step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'active' ? <Icon name="star" size={12} /> : <Icon name="lock" size={11} />}</span>
               <i />
             </div>
             <div>
-              <h3>{step.title}{step.state === 'active' ? <em>현재 위치</em> : null}</h3>
+              <h3>
+                {step.title}
+                {step.state === 'active' ? <em>{isJustOpened ? '다음 구간 열림' : '현재 위치'}</em> : null}
+              </h3>
               <strong>{step.subtitle}</strong>
               <p>{step.pages}</p>
             </div>
           </article>
-        ))}
+          );
+        })}
         {showReviewStep ? (
           <article className={`fd-timeline-step fd-timeline-step--review is-${reviewState}`}>
             <div className="fd-timeline-rail">
@@ -312,27 +355,52 @@ export function PaigeAvatar() {
 
 export function ChatBubble({ message }) {
   const isUser = message.role === 'user';
+  const isStreaming = message.status === 'streaming' && message.content.length > 0;
   return (
     <article className={`fd-chat-row ${isUser ? 'is-user' : 'is-ai'}`}>
       {!isUser ? <PaigeAvatar /> : null}
       <div>
         {!isUser ? <span className="fd-chat-name">Paige</span> : null}
-        <p>{message.content}</p>
+        <p>
+          {!isUser ? (
+            <StreamingText text={message.content} streaming={isStreaming} />
+          ) : (
+            message.content
+          )}
+        </p>
       </div>
     </article>
   );
 }
 
-export function CommunityPost({ post }) {
+export function CommunityPost({ post, staggerDelay = 0 }) {
   const [spoilerVisible, setSpoilerVisible] = useState(false);
+  const [visible, setVisible] = useState(staggerDelay === 0);
   const traces = post.traces.map((trace) => (typeof trace === 'string' ? { label: trace, icon: 'calendar' } : trace));
 
+  useEffect(() => {
+    if (staggerDelay <= 0) {
+      setVisible(true);
+      return undefined;
+    }
+    const timer = setTimeout(() => setVisible(true), staggerDelay);
+    return () => clearTimeout(timer);
+  }, [staggerDelay]);
+
+  if (!visible) {
+    return <article className="fd-community-card fd-community-skeleton" aria-hidden="true" />;
+  }
+
   return (
-    <article className="fd-community-card">
+    <article className="fd-community-card is-visible">
       <div className="fd-reviewer-row">
         <span className="fd-avatar">{post.avatar}</span>
         <div>
-          <h3>{post.user}<em>{post.role}</em></h3>
+          <h3>
+            {post.user}
+            <em>{post.role}</em>
+            {post.isNew ? <Badge tone="warm">방금 게시</Badge> : null}
+          </h3>
           <p>{post.date}</p>
         </div>
         <Chip icon="check" selected>팔로잉</Chip>

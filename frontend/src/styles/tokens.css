@@ -60,11 +60,29 @@
   --color-review-green: #72A729;
   --color-review-divider: #E9DDCB;
   --color-review-count: #C7B395;
+  /* phone-home 위젯 */
+  --color-widget-phone-home-start: #F8F4EE;
+  --color-widget-phone-home-end: #EEE8DC;
+  --color-widget-phone-home-badge: #EDE8DF;
+  --color-widget-phone-home-chip: #E8E2D6;
+  --gradient-widget-phone-home: linear-gradient(180deg, var(--color-widget-phone-home-start) 0%, var(--color-widget-phone-home-end) 100%);
+
+  /* next-day 위젯 */
+  --color-widget-next-day-start: #FEF6E4;
+  --color-widget-next-day-end: #FDECD0;
+  --color-widget-next-day-badge: #FCECD4;
+  --color-widget-next-day-chip: #FAE6C8;
+  --gradient-widget-next-day: linear-gradient(180deg, var(--color-widget-next-day-start) 0%, var(--color-widget-next-day-end) 100%);
+  --color-widget-headline: #2D2D2D;
+  --color-widget-subtext: #8D8D8D;
+  --color-widget-status: #8D8D8D;
 
   --font-family-base: 'Noto Sans KR', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-size-status: 0.9375rem;
   --font-size-title: 1.25rem;
   --font-size-display: 1.5rem;
+  --font-size-widget-headline: 1.625rem;
+  --font-size-widget-sub: 1rem;
   --font-size-hero-icon: 2.25rem;
   --font-size-heading: 1.125rem;
   --font-size-base: 0.875rem;
@@ -92,6 +110,7 @@
   --radius-xl: 1rem;
   --radius-2xl: 1.125rem;
   --radius-hero: 1.25rem;
+  --radius-widget: 2.5rem;
   --radius-pill: 999px;
   --shadow-soft: 0 0.25rem 1.25rem var(--color-shadow-warm);
   --shadow-card: 0 0.125rem 0.75rem rgba(176, 144, 96, 0.09);
