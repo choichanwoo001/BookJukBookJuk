@@ -18,9 +18,9 @@ export const journeySteps = [
 export const completedJourneySteps = journeySteps.map((step) => ({ ...step, state: 'done' }));
 
 export const libraryBooks = [
-  { icon: '🌱', title: '어른이 된다는 것', author: '김혜진', pages: 224, progress: 0, note: '방금 추가된 책이에요', state: 'NEW' },
-  { icon: '🌊', title: '오직 두 사람', author: '김영하', pages: 272, progress: 18, note: '2구간을 기다리고 있어요', state: '읽는 중' },
-  { icon: '🌙', title: '밝은 밤', author: '최은영', pages: 344, progress: 42, note: '꾸준히 읽고 있어요', state: '읽는 중' },
+  { id: 'reading-1', icon: '🌱', title: '어른이 된다는 것', author: '김혜진', pages: 224, progress: 0, note: '방금 추가된 책이에요', state: 'NEW' },
+  { id: 'reading-2', icon: '🌊', title: '오직 두 사람', author: '김영하', pages: 272, progress: 18, note: '2구간을 기다리고 있어요', state: '읽는 중' },
+  { id: 'reading-3', icon: '🌙', title: '밝은 밤', author: '최은영', pages: 344, progress: 42, note: '꾸준히 읽고 있어요', state: '읽는 중' },
 ];
 
 export const recommendedBooks = [

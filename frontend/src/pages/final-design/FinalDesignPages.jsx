@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import {
@@ -19,8 +19,21 @@ import {
   PrimaryButton,
   SearchBar,
 } from '../../components/final-design/FinalDesignComponents.jsx';
+import { StaggerReveal } from '../../components/final-design/StaggerReveal.jsx';
+import { StreamingText } from '../../components/final-design/StreamingText.jsx';
+import { TypingIndicator } from '../../components/final-design/TypingIndicator.jsx';
 import {
-  chatMessages,
+  DEMO_TIMING,
+  defaultUserReview,
+  reviewDraftParagraphs,
+  reviewDraftVariants,
+  reviewMemories,
+  reviewQuestions,
+  summaryContent,
+} from '../../data/demoScript.js';
+import { useChatDemo } from '../../hooks/useChatDemo.js';
+import { useStreamingText } from '../../hooks/useStreamingText.js';
+import {
   communityPosts,
   communitySearches,
   completedJourneySteps,
@@ -30,9 +43,18 @@ import {
   recommendedBooks,
   searchResults,
 } from '../../data/mockFinalDesign.js';
+import {
+  getDemoSession,
+  getPostedReview,
+  getSectionProgress,
+  getShelfBooks,
+  saveHighlightSession,
+  savePostedReview,
+  setSectionProgress,
+  updateDemoSession,
+} from '../../utils/demoStorage.js';
 
 const DEFAULT_BOOK_ID = 'reading-1';
-const PROGRESS_STORAGE_KEY = 'bookjuk.sectionProgress';
 
 const bookCatalog = libraryBooks.map((book, index) => ({
   ...currentBook,
@@ -49,22 +71,12 @@ function clampReadCount(value) {
   return Math.min(Math.max(Number(value) || 0, 0), journeySteps.length);
 }
 
-function readProgressMap() {
-  try {
-    return JSON.parse(window.localStorage.getItem(PROGRESS_STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
 function getStoredReadCount(bookId) {
-  return clampReadCount(readProgressMap()[bookId]);
+  return clampReadCount(getSectionProgress(bookId));
 }
 
 function storeReadCount(bookId, readCount) {
-  const progress = readProgressMap();
-  progress[bookId] = clampReadCount(readCount);
-  window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+  setSectionProgress(bookId, clampReadCount(readCount));
 }
 
 function buildJourneySteps(readCount) {
@@ -99,13 +111,13 @@ function useBookProgress(bookId) {
     setReadCount(getStoredReadCount(bookId));
   }, [bookId]);
 
-  const markCurrentSegmentRead = () => {
+  const markCurrentSegmentRead = useCallback(() => {
     setReadCount((current) => {
       const next = clampReadCount(current + 1);
       storeReadCount(bookId, next);
       return next;
     });
-  };
+  }, [bookId]);
 
   const safeReadCount = clampReadCount(readCount);
   return {
@@ -144,7 +156,7 @@ export function HomePage() {
       <Greeting />
       <main className="fd-scroll fd-home">
         <CurrentBookCard book={bookWithProgress} />
-        <JourneyTimeline steps={journey} currentSegment={currentSegment} onOpenStepDoubleClick={markCurrentSegmentRead} showReviewStep />
+        <JourneyTimeline steps={journey} currentSegment={currentSegment} onStepDoubleClick={markCurrentSegmentRead} showReviewStep />
         <section className="fd-prompt-card">
           <h2><Icon name="sparkles" /> 지금 바로 시작해볼까요?</h2>
           <p>첫 페이지를 열면 독서 여정이 시작돼요. Paige가 함께 읽으며 요약과 질문을 준비해드릴게요.</p>
@@ -172,11 +184,7 @@ export function HomeCompletePage() {
 export function LibraryPage() {
   const [tab, setTab] = useState('읽는 중 3권');
   const tabs = ['읽는 중 3권', '완독 0권', '읽고 싶은 책 0권'];
-  const shelfBooks = [
-    { id: 'reading-1', icon: '🌱', title: '어른이 된다는 것', author: '김혜진', pages: 224, tone: 'brown' },
-    { id: 'reading-2', icon: '🌊', title: '오직 두 사람', author: '김영하', pages: 292, tone: 'blue' },
-    { id: 'reading-3', icon: '🌙', title: '단 한 사람', author: '정이현', pages: 256, tone: 'gold' },
-  ];
+  const shelfBooks = getShelfBooks();
   return (
     <MobileShell activeTab="library" className="fd-library-page">
       <header className="fd-library-header">
@@ -185,7 +193,8 @@ export function LibraryPage() {
           <p>총 3권 · 완독 0권</p>
         </div>
         <nav aria-label="책장 도구">
-          <Link to="/books/search" aria-label="검색"><Icon name="search" size={18} /></Link>
+          <Link to="/scan" aria-label="QR 스캔"><Icon name="search" size={18} /></Link>
+          <Link to="/books/search" aria-label="검색"><Icon name="bookOpen" size={18} /></Link>
           <button type="button" aria-label="정렬"><Icon name="slidersHorizontal" size={18} /></button>
         </nav>
       </header>
@@ -200,30 +209,37 @@ export function LibraryPage() {
           <button type="button">최근 순 <Icon name="chevronDown" size={12} /></button>
         </div>
         <section className="fd-library-book-list">
-          {shelfBooks.map((book) => (
-            <article className="fd-shelf-card" key={book.id}>
-              <div className="fd-shelf-card-main">
-                <BookCover icon={book.icon} tone={book.tone} />
-                <div className="fd-shelf-info">
-                  <div className="fd-shelf-title-row">
-                    <h2>{book.title}</h2>
-                    <Badge>NEW</Badge>
-                    <button type="button" aria-label={`${book.title} 더 보기`}><Icon name="moreHorizontal" size={15} /></button>
+          {shelfBooks.map((book, index) => {
+            const currentPage = Math.round((book.pages * book.progress) / 100);
+            const isNew = book.state === 'NEW';
+            return (
+              <StaggerReveal delayMs={index * DEMO_TIMING.staggerCardMs} key={book.id}>
+                <article className={`fd-shelf-card ${isNew ? 'is-new' : ''}`}>
+                  <button className="fd-shelf-card-more" type="button" aria-label={`${book.title} 더 보기`}>
+                    <Icon name="moreHorizontal" size={15} />
+                  </button>
+                  <div className="fd-shelf-card-main">
+                    <BookCover icon={book.icon} tone={book.tone} />
+                    <div className="fd-shelf-info">
+                      <div className="fd-shelf-title-row">
+                        <h2>{book.title}</h2>
+                        {isNew ? <Badge>NEW</Badge> : null}
+                      </div>
+                      <strong>{book.author}</strong>
+                      <div className="fd-shelf-progress">
+                        <span><i style={{ width: `${book.progress}%` }} /></span>
+                        <p><em>{currentPage} / {book.pages} 페이지</em><b>{book.progress}%</b></p>
+                      </div>
+                    </div>
                   </div>
-                  <strong>{book.author}</strong>
-                  <div className="fd-shelf-progress">
-                    <span><i /></span>
-                    <p><em>0 / {book.pages} 페이지</em><b>0%</b></p>
-                  </div>
-                </div>
-              </div>
-              <footer>
-                <span><Icon name="sparkles" size={12} /> 방금 추가된 책이에요</span>
-                <Link to={`/books/${book.id}/home`}><Icon name="play" size={11} /> 시작하기</Link>
-              </footer>
-            </article>
-          ))}
-          <Link className="fd-library-add-button" to="/books/search"><Icon name="plus" size={16} /> 새 책 추가하기</Link>
+                  <footer>
+                    <span><Icon name="sparkles" size={12} /> {book.note}</span>
+                    <Link to={`/books/${book.id}/home`}><Icon name="play" size={11} /> {isNew ? '시작하기' : '이어 읽기'}</Link>
+                  </footer>
+                </article>
+              </StaggerReveal>
+            );
+          })}
         </section>
       </main>
     </MobileShell>
@@ -234,14 +250,28 @@ export function ChatPage() {
   const { book, bookId } = useSelectedBook();
   const { currentSegment, journey } = useBookProgress(bookId);
   const currentStep = journey[currentSegment - 1] || journey[0];
-  const [messages, setMessages] = useState(chatMessages);
   const [draft, setDraft] = useState('');
+  const scrollRef = useRef(null);
+  const bottomRef = useRef(null);
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+    });
+  }, []);
+  const { messages, isThinking, isBusy, sendUserMessage } = useChatDemo({ onScroll: () => scrollToBottom('auto') });
+
+  useEffect(() => {
+    scrollToBottom(messages.length <= 1 ? 'auto' : 'smooth');
+  }, [messages, isThinking, scrollToBottom]);
+
   const addMessage = (event) => {
     event.preventDefault();
-    if (!draft.trim()) return;
-    setMessages([...messages, { role: 'user', content: draft.trim() }, { role: 'ai', content: '좋아요. 그 문장을 오늘의 기록에 남겨두고, 다음 질문을 이어갈게요.' }]);
-    setDraft('');
+    if (sendUserMessage(draft)) {
+      setDraft('');
+      scrollToBottom('smooth');
+    }
   };
+
   return (
     <MobileShell showTabBar={false} className="fd-chat-page">
       <Header title="오늘의 독서" backTo={`/books/${bookId}/home`} right={<Link className="fd-soft-button" to={`/books/${bookId}/highlight`}>저장</Link>} />
@@ -253,12 +283,14 @@ export function ChatPage() {
         </div>
         <Icon name="pencil" />
       </section>
-      <main className="fd-chat-scroll">
-        {messages.map((message, index) => <ChatBubble message={message} key={`${message.role}-${index}`} />)}
+      <main className="fd-chat-scroll" ref={scrollRef}>
+        {messages.map((message, index) => <ChatBubble message={message} key={`${message.role}-${index}-${message.content.slice(0, 8)}`} />)}
+        {isThinking ? <TypingIndicator /> : null}
+        <div className="fd-chat-scroll-anchor" ref={bottomRef} aria-hidden="true" />
       </main>
       <form className="fd-input-bar" onSubmit={addMessage}>
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Paige에게 말하기..." />
-        <button type="submit" aria-label="전송"><Icon name="send" size={18} /></button>
+        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Paige에게 말하기..." disabled={isBusy} />
+        <button type="submit" aria-label="전송" disabled={isBusy || !draft.trim()}><Icon name="send" size={18} /></button>
       </form>
     </MobileShell>
   );
@@ -268,8 +300,14 @@ export function HighlightPage() {
   const { book, bookId } = useSelectedBook();
   const navigate = useNavigate();
   const { currentSegment } = useBookProgress(bookId);
+  const [saving, setSaving] = useState(false);
   const saveHighlight = () => {
-    navigate(`/books/${bookId}/summary`);
+    if (saving) return;
+    setSaving(true);
+    saveHighlightSession();
+    setTimeout(() => {
+      navigate(`/books/${bookId}/summary`);
+    }, DEMO_TIMING.saveMs);
   };
   return (
     <MobileShell showTabBar={false} className="fd-highlight-page">
@@ -306,7 +344,7 @@ export function HighlightPage() {
         </section>
       </main>
       <footer className="fd-highlight-submit-bar">
-        <PrimaryButton icon="bookmark" onClick={saveHighlight}>저장하기</PrimaryButton>
+        <PrimaryButton icon="bookmark" onClick={saveHighlight} loading={saving}>{saving ? '저장 중…' : '저장하기'}</PrimaryButton>
       </footer>
     </MobileShell>
   );
@@ -318,6 +356,14 @@ export function SummaryPage() {
   const { currentSegment, journey } = useBookProgress(bookId);
   const currentStep = journey[currentSegment - 1] || journey[0];
   const pageCountLabel = getPageCountLabel(currentStep.pages);
+  const session = getDemoSession();
+  const chatTurns = session.chatTurns || 4;
+  const highlightCount = session.highlightCount || 1;
+
+  useEffect(() => {
+    updateDemoSession({ lastPage: 34 });
+  }, []);
+
   return (
     <MobileShell activeTab="library" className="fd-summary-page">
       <header className="fd-summary-header">
@@ -330,7 +376,7 @@ export function SummaryPage() {
           <div className="fd-summary-chip"><Icon name="calendar" size={12} /><span>2025.06.01</span></div>
           <div className="fd-summary-chip"><Icon name="bookOpen" size={12} /><span>{currentStep.pages} · {pageCountLabel}</span></div>
         </section>
-        <div className="fd-summary-book-line"><i /> {book.title} · {currentSegment}구간 · {currentStep.subtitle}</div>
+        <div className="fd-summary-book-line"><i aria-hidden="true" /> {book.title} · {currentSegment}구간 · {currentStep.subtitle}</div>
 
         <section className="fd-summary-card fd-paige-summary-card">
           <div className="fd-summary-card-head">
@@ -340,7 +386,7 @@ export function SummaryPage() {
           <div className="fd-summary-divider" />
           <div className="fd-summary-accent-body">
             <i />
-            <p>오늘 읽은 {currentSegment}구간에서는 '어른이 된다는 것'이 단순히 나이를 먹는 일이 아니라, 관계 속에서 자신을 돌아보고 스스로를 어떻게 바라보는지가 더 중요하다는 흐름이 드러나요. 평범한 순간을 현실적으로 바라보는 시선이 인상적이며, 어른다움은 정답을 아는 상태보다 흔들리면서도 계속 살아가는 과정에 가깝게 느껴집니다.</p>
+            <p>{summaryContent.paigeSummary}</p>
           </div>
         </section>
 
@@ -361,7 +407,7 @@ export function SummaryPage() {
         <section className="fd-summary-keywords">
           <h2><span className="fd-summary-line-icon">◇</span> 오늘의 키워드</h2>
           <div>
-            {['#자아', '#어른다움', '#관계', '#흔들림', '#자기이해'].map((tag, index) => (
+            {summaryContent.keywords.map((tag, index) => (
               <span className={index < 3 ? 'is-strong' : ''} key={tag}>{tag}</span>
             ))}
           </div>
@@ -370,8 +416,10 @@ export function SummaryPage() {
         <section className="fd-summary-card fd-memo-summary-card">
           <h2><Icon name="pencil" size={15} /> 오늘의 메모</h2>
           <div className="fd-memo-summary-box">
-            <p>취준하면서 자꾸 생각나는 문장.<br />'어른답게'가 뭔지 모르겠다.</p>
-            <div><span>공감</span><span>인상적</span></div>
+            <p className="fd-memo-summary-text">{summaryContent.memo}</p>
+            <div className="fd-memo-tags">
+              {summaryContent.memoTags.map((tag) => <span key={tag}>{tag}</span>)}
+            </div>
           </div>
         </section>
 
@@ -380,7 +428,7 @@ export function SummaryPage() {
             <div>
               <span className="fd-streak-icon">♨</span>
               <section>
-                <h2>1일째</h2>
+                <h2>{session.readingDays}일째</h2>
                 <p>독서 여정을 시작했어요</p>
               </section>
             </div>
@@ -389,8 +437,8 @@ export function SummaryPage() {
           <div className="fd-summary-divider" />
           <div className="fd-streak-stats">
             <span><Icon name="bookOpen" size={13} /> {pageCountLabel} 읽음</span>
-            <span><span className="fd-summary-line-icon">○</span> AI 대화 4회</span>
-            <span><Icon name="pencil" size={13} /> 1개 저장</span>
+            <span><span className="fd-summary-line-icon">○</span> AI 대화 {chatTurns}회</span>
+            <span><Icon name="pencil" size={13} /> {highlightCount}개 저장</span>
           </div>
           <p>오늘의 생각과 문장을 함께 기록했어요. 내일도 이어가볼까요?</p>
         </section>
@@ -449,12 +497,53 @@ export function SearchResultsPage() {
 
 export function CommunityPage() {
   const [tab, setTab] = useState('팔로잉');
+  const [loading, setLoading] = useState(true);
+  const session = getDemoSession();
+  const myReview = getPostedReview();
+
+  const posts = useMemo(() => {
+    const base = [...communityPosts];
+    if (myReview) {
+      base.unshift({
+        user: myReview.user,
+        role: '독자',
+        date: myReview.date,
+        avatar: myReview.avatar,
+        isNew: true,
+        book: myReview.book,
+        review: myReview.review,
+        traces: [
+          { label: `${session.readingDays}일 꾸준히`, icon: 'calendar' },
+          { label: `대화 ${session.chatTurns}회`, icon: 'quote' },
+          { label: `하이라이트 ${session.highlightCount}개`, icon: 'pencil' },
+        ],
+        quote: myReview.quote,
+        spoiler: myReview.spoiler,
+      });
+    }
+    return base;
+  }, [myReview, session.chatTurns, session.highlightCount, session.readingDays]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), DEMO_TIMING.feedSkeletonMs);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <MobileShell activeTab="community" className="fd-community-page">
-      <Header title="커뮤니티" subtitle="팔로우한 사람들의 독서 후기를 확인해보세요" searchTo="/community/search" right={<button className="fd-icon-button" type="button" aria-label="알림"><Icon name="bell" /></button>} />
+      <Header title="커뮤니티" subtitle="팔로우한 사람들의 독서 후기를 확인해보세요" searchTo="/community/search" right={<Link className="fd-icon-button" to="/demo/phone-home" aria-label="알림"><Icon name="bell" /></Link>} />
       <main className="fd-scroll">
         <div className="fd-wrap">{['팔로잉', '추천', '평론가', '독자'].map((item) => <Chip selected={tab === item} onClick={() => setTab(item)} key={item}>{item}</Chip>)}</div>
-        {communityPosts.map((post) => <CommunityPost post={post} key={post.user} />)}
+        {loading ? (
+          <>
+            <article className="fd-community-card fd-community-skeleton" />
+            <article className="fd-community-card fd-community-skeleton" />
+          </>
+        ) : (
+          posts.map((post, index) => (
+            <CommunityPost post={post} staggerDelay={index * DEMO_TIMING.staggerCardMs} key={`${post.user}-${post.date}`} />
+          ))
+        )}
         <section className="fd-prompt-card">
           <h2><Icon name="check" /> 왜 이 리뷰를 신뢰할 수 있나요?</h2>
           <p>별점만이 아니라 읽은 기간, 저장 횟수, 하이라이트 같은 독서 흔적을 함께 보여드려요.</p>
@@ -484,39 +573,101 @@ export function CommunitySearchPage() {
   );
 }
 
+function DraftStreamingParagraphs({ paragraphs, active, showComplete, onComplete }) {
+  const [index, setIndex] = useState(0);
+  const current = paragraphs[index] || '';
+  const { displayed, isStreaming, isComplete } = useStreamingText(current, {
+    active: active && Boolean(current),
+    onComplete: () => {
+      if (index < paragraphs.length - 1) {
+        setIndex((value) => value + 1);
+      } else {
+        onComplete?.();
+      }
+    },
+  });
+
+  if (!active && !showComplete) return null;
+
+  if (showComplete) {
+    return (
+      <>
+        {paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {paragraphs.slice(0, index).map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+      {current ? <p><StreamingText text={displayed} streaming={isStreaming && !isComplete} /></p> : null}
+    </>
+  );
+}
+
 export function AiReviewPage() {
-  const { bookId } = useSelectedBook();
+  const { book, bookId } = useSelectedBook();
   const navigate = useNavigate();
-  const memories = [
-    {
-      date: '6/1',
-      text: '"읽다 보니 어른이 된다는 게 나이를 먹는 일보다 사람들 사이에서 나를 어떻게 바라보는지가 더 중요하다고 느꼈어요."',
-    },
-    {
-      date: '6/3',
-      text: '"엄마와의 장면에서 내 이야기 같다는 말을 남겼어요."',
-    },
-    {
-      date: '6/9',
-      text: '"다 읽고 나서는 어른이 된다는 게 성장만이 아니라 무언가를 포기하는 일이기도 하다고 느꼈어요."',
-    },
-  ];
-  const questions = [
-    {
-      label: 'Q1 · 대화 기반',
-      text: "'어른아 어른답지'라고 했는데, 다 읽고 나서 그 생각이 달라진 게 있었나요?",
-    },
-    {
-      label: 'Q2 · 대화 기반',
-      text: '엄마 장면에서 본인 이야기 같다고 했잖아요. 그 감정을 리뷰에 한 문장으로 적는다면 어떻게 표현할 수 있을까요?',
-    },
-    {
-      label: 'Q3 · 하이라이트 기반',
+  const [memoryCount, setMemoryCount] = useState(0);
+  const [showQuestions, setShowQuestions] = useState(false);
+  const [draftPhase, setDraftPhase] = useState('waiting');
+  const [draftVersion, setDraftVersion] = useState(0);
+  const [draftParagraphs, setDraftParagraphs] = useState(reviewDraftParagraphs);
+  const [userReview, setUserReview] = useState(defaultUserReview);
+  const [posting, setPosting] = useState(false);
+  const isGeneratingDraft = draftPhase === 'thinking' || draftPhase === 'streaming';
+
+  useEffect(() => {
+    const timers = reviewMemories.map((_, index) =>
+      setTimeout(() => setMemoryCount(index + 1), (index + 1) * DEMO_TIMING.memoryRevealMs),
+    );
+    const questionsTimer = setTimeout(
+      () => setShowQuestions(true),
+      reviewMemories.length * DEMO_TIMING.memoryRevealMs + DEMO_TIMING.staggerSectionMs,
+    );
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(questionsTimer);
+    };
+  }, []);
+
+  const startDraftGeneration = (paragraphs) => {
+    setDraftParagraphs(paragraphs);
+    setDraftVersion((value) => value + 1);
+    setDraftPhase('thinking');
+    setTimeout(() => setDraftPhase('streaming'), DEMO_TIMING.reviewDraftThinkMs);
+  };
+
+  const generateDraft = () => {
+    if (isGeneratingDraft) return;
+    startDraftGeneration(reviewDraftParagraphs);
+  };
+
+  const applyDraftVariant = (variant) => {
+    if (isGeneratingDraft) return;
+    startDraftGeneration(reviewDraftVariants[variant] || reviewDraftParagraphs);
+  };
+
+  const regenerateDraft = () => {
+    if (isGeneratingDraft) return;
+    startDraftGeneration([...reviewDraftParagraphs].reverse());
+  };
+
+  const publishReview = () => {
+    if (posting) return;
+    setPosting(true);
+    savePostedReview({
+      user: '지현',
+      avatar: '지',
+      date: new Date().toLocaleDateString('ko-KR').replace(/\./g, '.').slice(0, -1),
+      book: { icon: book.icon, title: book.title, author: book.author, rating: '4.0' },
+      review: `"${userReview.split('\n')[0]}"`,
       quote: '"어른스럽다는 말을 들을수록 나는 점점 나로부터 멀어지는 것 같았다"',
-      text: '이 문장이 왜 인상 깊었는지도 리뷰에 담아볼까요?',
-      tone: 'purple',
-    },
-  ];
+      spoiler: '관계 속에서 스스로를 바라보게 되는 장면이 오래 남았어요.',
+      body: userReview,
+    });
+    setTimeout(() => navigate(`/books/${bookId}/completion`), 600);
+  };
 
   return (
     <MobileShell showTabBar={false} className="fd-ai-review-page">
@@ -529,8 +680,8 @@ export function AiReviewPage() {
         <section className="fd-review-book-head">
           <div className="fd-review-cover" aria-hidden="true"><span /></div>
           <div>
-            <h2>어른이 된다는 것 <Badge>완독</Badge></h2>
-            <p>김혜진 · 224페이지 · 1~5구간 완료</p>
+            <h2>{book.title} <Badge>완독</Badge></h2>
+            <p>{book.author} · {book.pages}페이지 · 1~5구간 완료</p>
           </div>
         </section>
 
@@ -542,8 +693,8 @@ export function AiReviewPage() {
           </div>
           <div className="fd-review-divider" />
           <div className="fd-memory-list">
-            {memories.map((item) => (
-              <article className="fd-review-memory" key={item.date}>
+            {reviewMemories.slice(0, memoryCount).map((item) => (
+              <article className="fd-review-memory is-visible" key={item.date}>
                 <b>{item.date}</b>
                 <p>{item.text}</p>
               </article>
@@ -551,27 +702,43 @@ export function AiReviewPage() {
           </div>
         </section>
 
-        <section className="fd-review-question-section">
-          <h2><Icon name="search" size={15} /> 리뷰 작성에 도움이 될 질문이에요</h2>
-          {questions.map((item) => (
-            <article className={`fd-review-question ${item.tone === 'purple' ? 'is-purple' : ''}`} key={item.label}>
-              <span>{item.label}</span>
-              {item.quote ? <blockquote>{item.quote}</blockquote> : null}
-              <p>{item.text}</p>
-            </article>
-          ))}
-        </section>
+        {showQuestions ? (
+          <StaggerReveal>
+            <section className="fd-review-question-section">
+              <h2><Icon name="search" size={15} /> 리뷰 작성에 도움이 될 질문이에요</h2>
+              {reviewQuestions.map((item) => (
+                <article className={`fd-review-question ${item.tone === 'purple' ? 'is-purple' : ''}`} key={item.label}>
+                  <span>{item.label}</span>
+                  {item.quote ? <blockquote>{item.quote}</blockquote> : null}
+                  <p>{item.text}</p>
+                </article>
+              ))}
+            </section>
+          </StaggerReveal>
+        ) : null}
 
         <section className="fd-review-panel fd-review-draft">
           <div className="fd-review-panel-head">
             <PaigeAvatar />
             <h2>Paige의 리뷰 초안</h2>
-            <Badge icon="sparkles">AI 생성</Badge>
+            <Badge
+              icon="sparkles"
+              onClick={generateDraft}
+              disabled={isGeneratingDraft}
+            >
+              {draftPhase === 'thinking' ? '생성 중…' : 'AI 생성'}
+            </Badge>
           </div>
           <div className="fd-review-divider" />
           <div className="fd-draft-box">
-            <p>『어른이 된다는 것』은 성장이란 이름으로 어른다움을 강요받는 순간들을 조용하고 현실적으로 보여주는 책이다.</p>
-            <p>읽는 내내 어른이 된다는 것이 더 단단해지는 일이 아니라, 오히려 나를 잃지 않기 위해 계속 흔들리고 질문하는 과정처럼 느껴졌다. 특히 관계 속에서 스스로를 바라보게 되는 장면들이 오랫동안 마음에 남았다.</p>
+            {draftPhase === 'thinking' ? <p className="fd-draft-loading">초안 생성 중…</p> : null}
+            <DraftStreamingParagraphs
+              key={`${draftVersion}-${draftParagraphs.join('|')}`}
+              paragraphs={draftParagraphs}
+              active={draftPhase === 'streaming'}
+              showComplete={draftPhase === 'complete'}
+              onComplete={() => setDraftPhase('complete')}
+            />
           </div>
           <p className="fd-draft-caption">이 초안은 이전 대화와 하이라이트를 바탕으로 생성되었어요</p>
         </section>
@@ -582,21 +749,23 @@ export function AiReviewPage() {
             <span>초안 기반으로 수정 중</span>
           </div>
           <div className="fd-review-tools" aria-label="리뷰 수정 제안">
-            {['더 짧게', '더 감성적으로', '더 솔직하게', '다시 제안'].map((item, index) => (
-              <button className={index === 3 ? 'is-purple' : ''} type="button" key={item}>{item}</button>
-            ))}
+            <button type="button" onClick={() => applyDraftVariant('shorter')}>더 짧게</button>
+            <button type="button" onClick={() => applyDraftVariant('emotional')}>더 감성적으로</button>
+            <button type="button" onClick={() => applyDraftVariant('honest')}>더 솔직하게</button>
+            <button className="is-purple" type="button" onClick={regenerateDraft}>다시 제안</button>
           </div>
           <label className="fd-review-editor-wrap">
             <textarea
               className="fd-review-editor"
-              defaultValue={'어른이 된다는 건 성장만을 의미하지 않는다.\n이 책은 관계 속에서 스스로를 바라보게 만드는 순간들을 담담하게 보여준다.\n\n읽는 동안 나는 어른다움이란 정답을 아는 상태가 아니라, 흔들리면서도 계속 살아가는 법을 배워가는 과정일 수 있다고 느꼈다.'}
+              value={userReview}
+              onChange={(event) => setUserReview(event.target.value)}
             />
-            <span>89자</span>
+            <span>{userReview.length}자</span>
           </label>
         </section>
       </main>
       <footer className="fd-review-submit-bar">
-        <PrimaryButton to={`/books/${bookId}/completion`} icon="send">리뷰 게시하기</PrimaryButton>
+        <PrimaryButton icon="send" onClick={publishReview} loading={posting}>리뷰 게시하기</PrimaryButton>
       </footer>
     </MobileShell>
   );
