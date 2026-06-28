@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import {
@@ -24,7 +24,6 @@ import { StreamingText } from '../../components/final-design/StreamingText.jsx';
 import { TypingIndicator } from '../../components/final-design/TypingIndicator.jsx';
 import {
   DEMO_TIMING,
-  defaultUserReview,
   reviewDraftParagraphs,
   reviewDraftVariants,
   reviewMemories,
@@ -51,6 +50,7 @@ import {
   saveHighlightSession,
   savePostedReview,
   setSectionProgress,
+  subscribeSectionProgress,
   updateDemoSession,
 } from '../../utils/demoStorage.js';
 
@@ -111,8 +111,13 @@ function useBookProgress(bookId) {
     setReadCount(getStoredReadCount(bookId));
   }, [bookId]);
 
+  useEffect(() => subscribeSectionProgress(() => {
+    setReadCount(getStoredReadCount(bookId));
+  }), [bookId]);
+
   const markCurrentSegmentRead = useCallback(() => {
     setReadCount((current) => {
+      if (current >= journeySteps.length) return current;
       const next = clampReadCount(current + 1);
       storeReadCount(bookId, next);
       return next;
@@ -182,15 +187,16 @@ export function HomeCompletePage() {
 }
 
 export function LibraryPage() {
-  const [tab, setTab] = useState('읽는 중 3권');
-  const tabs = ['읽는 중 3권', '완독 0권', '읽고 싶은 책 0권'];
   const shelfBooks = getShelfBooks();
+  const readingTabLabel = `읽는 중 ${shelfBooks.length}권`;
+  const [tab, setTab] = useState(readingTabLabel);
+  const tabs = [readingTabLabel, '완독 0권', '읽고 싶은 책 0권'];
   return (
     <MobileShell activeTab="library" className="fd-library-page">
       <header className="fd-library-header">
         <div>
           <h1>나의 책장</h1>
-          <p>총 3권 · 완독 0권</p>
+          <p>총 {shelfBooks.length}권 · 완독 0권</p>
         </div>
         <nav aria-label="책장 도구">
           <Link to="/scan" aria-label="QR 스캔"><Icon name="search" size={18} /></Link>
@@ -219,7 +225,7 @@ export function LibraryPage() {
                     <Icon name="moreHorizontal" size={15} />
                   </button>
                   <div className="fd-shelf-card-main">
-                    <BookCover icon={book.icon} tone={book.tone} />
+                    <BookCover icon={book.icon} cover={book.cover} tone={book.tone} alt={book.title} />
                     <div className="fd-shelf-info">
                       <div className="fd-shelf-title-row">
                         <h2>{book.title}</h2>
@@ -248,9 +254,11 @@ export function LibraryPage() {
 
 export function ChatPage() {
   const { book, bookId } = useSelectedBook();
+  const navigate = useNavigate();
   const { currentSegment, journey } = useBookProgress(bookId);
   const currentStep = journey[currentSegment - 1] || journey[0];
   const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
   const scrollToBottom = useCallback((behavior = 'smooth') => {
@@ -272,9 +280,37 @@ export function ChatPage() {
     }
   };
 
+  const saveConversation = () => {
+    if (saving || isBusy) return;
+    setSaving(true);
+    setTimeout(() => {
+      navigate(`/books/${bookId}/highlight`);
+    }, DEMO_TIMING.chatSaveMs);
+  };
+
   return (
     <MobileShell showTabBar={false} className="fd-chat-page">
-      <Header title="오늘의 독서" backTo={`/books/${bookId}/home`} right={<Link className="fd-soft-button" to={`/books/${bookId}/highlight`}>저장</Link>} />
+      <Header
+        title="오늘의 독서"
+        backTo={`/books/${bookId}/home`}
+        right={(
+          <button
+            type="button"
+            className={`fd-soft-button ${saving ? 'is-loading' : ''}`}
+            onClick={saveConversation}
+            disabled={saving || isBusy}
+          >
+            {saving ? (
+              <>
+                <span className="fd-button-spinner" aria-hidden="true" />
+                저장 중…
+              </>
+            ) : (
+              '저장'
+            )}
+          </button>
+        )}
+      />
       <section className="fd-range-card">
         <div>
           <span><Icon name="bookOpen" /> 오늘 읽은 범위</span>
@@ -289,9 +325,17 @@ export function ChatPage() {
         <div className="fd-chat-scroll-anchor" ref={bottomRef} aria-hidden="true" />
       </main>
       <form className="fd-input-bar" onSubmit={addMessage}>
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Paige에게 말하기..." disabled={isBusy} />
-        <button type="submit" aria-label="전송" disabled={isBusy || !draft.trim()}><Icon name="send" size={18} /></button>
+        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Paige에게 말하기..." disabled={isBusy || saving} />
+        <button type="submit" aria-label="전송" disabled={isBusy || saving || !draft.trim()}><Icon name="send" size={18} /></button>
       </form>
+      {saving ? (
+        <div className="fd-sync-overlay" role="status" aria-live="polite">
+          <div className="fd-sync-modal">
+            <span className="fd-button-spinner" aria-hidden="true" />
+            <p>오늘의 대화를 저장하는 중…</p>
+          </div>
+        </div>
+      ) : null}
     </MobileShell>
   );
 }
@@ -350,6 +394,34 @@ export function HighlightPage() {
   );
 }
 
+function PaigeSummaryStream({ text }) {
+  const [phase, setPhase] = useState('loading');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPhase('streaming'), DEMO_TIMING.summaryThinkMs);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const { displayed, isStreaming, isComplete } = useStreamingText(text, {
+    active: phase === 'streaming',
+  });
+
+  if (phase === 'loading') {
+    return (
+      <p className="fd-draft-loading fd-summary-loading" aria-live="polite">
+        <span className="fd-typing-dots" aria-hidden="true"><span /><span /><span /></span>
+        요약 생성 중…
+      </p>
+    );
+  }
+
+  return (
+    <p>
+      <StreamingText text={displayed} streaming={isStreaming && !isComplete} />
+    </p>
+  );
+}
+
 export function SummaryPage() {
   const { book, bookId } = useSelectedBook();
   const navigate = useNavigate();
@@ -386,7 +458,7 @@ export function SummaryPage() {
           <div className="fd-summary-divider" />
           <div className="fd-summary-accent-body">
             <i />
-            <p>{summaryContent.paigeSummary}</p>
+            <PaigeSummaryStream text={summaryContent.paigeSummary} />
           </div>
         </section>
 
@@ -613,7 +685,7 @@ export function AiReviewPage() {
   const [draftPhase, setDraftPhase] = useState('waiting');
   const [draftVersion, setDraftVersion] = useState(0);
   const [draftParagraphs, setDraftParagraphs] = useState(reviewDraftParagraphs);
-  const [userReview, setUserReview] = useState(defaultUserReview);
+  const [userReview, setUserReview] = useState('');
   const [posting, setPosting] = useState(false);
   const isGeneratingDraft = draftPhase === 'thinking' || draftPhase === 'streaming';
 
@@ -660,13 +732,16 @@ export function AiReviewPage() {
       user: '지현',
       avatar: '지',
       date: new Date().toLocaleDateString('ko-KR').replace(/\./g, '.').slice(0, -1),
-      book: { icon: book.icon, title: book.title, author: book.author, rating: '4.0' },
+      book: { icon: book.icon, title: book.title, author: book.author, rating: '4.0', cover: book.cover },
       review: `"${userReview.split('\n')[0]}"`,
       quote: '"어른스럽다는 말을 들을수록 나는 점점 나로부터 멀어지는 것 같았다"',
       spoiler: '관계 속에서 스스로를 바라보게 되는 장면이 오래 남았어요.',
       body: userReview,
     });
-    setTimeout(() => navigate(`/books/${bookId}/completion`), 600);
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+      navigate(`/books/${bookId}/completion`);
+    }, DEMO_TIMING.saveMs);
   };
 
   return (
@@ -678,7 +753,7 @@ export function AiReviewPage() {
       </header>
       <main className="fd-review-scroll">
         <section className="fd-review-book-head">
-          <div className="fd-review-cover" aria-hidden="true"><span /></div>
+          <BookCover icon={book.icon} cover={book.cover} tone={book.tone || 'brown'} alt={book.title} />
           <div>
             <h2>{book.title} <Badge>완독</Badge></h2>
             <p>{book.author} · {book.pages}페이지 · 1~5구간 완료</p>
@@ -784,6 +859,16 @@ const COMPLETION_KEYWORDS = ['#자아', '#억압', '#몸', '#저항', '#꿈', '#
 export function CompletionPage() {
   const { book, bookId } = useSelectedBook();
   const navigate = useNavigate();
+  const scrollRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const resetScroll = () => {
+      window.scrollTo(0, 0);
+      scrollRef.current?.scrollTo(0, 0);
+    };
+    resetScroll();
+    requestAnimationFrame(resetScroll);
+  }, [bookId]);
 
   return (
     <MobileShell activeTab="library" className="fd-complete-page">
@@ -793,7 +878,7 @@ export function CompletionPage() {
         <button className="fd-icon-button" type="button" aria-label="공유"><Icon name="moreHorizontal" size={18} /></button>
       </header>
 
-      <main className="fd-complete-scroll">
+      <main className="fd-complete-scroll" ref={scrollRef}>
         <section className="fd-complete-hero">
           <div className="fd-sparkle-row" aria-hidden="true"><span>✨</span><span>☆</span><span>✨</span></div>
           <div className="fd-party-icon" aria-hidden="true">🎉</div>
@@ -807,7 +892,7 @@ export function CompletionPage() {
             <span><Icon name="calendar" size={12} /> 2024.05.22 완독</span>
           </div>
           <div className="fd-complete-book-main">
-            <BookCover icon={book.icon} tone={book.tone || 'brown'} large />
+          <BookCover icon={book.icon} cover={book.cover} tone={book.tone || 'brown'} large alt={book.title} />
             <div>
               <h2>{book.title}</h2>
               <strong>{book.author}</strong>

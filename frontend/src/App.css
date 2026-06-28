@@ -159,6 +159,18 @@ a {
   font-weight: 700;
 }
 
+.fd-soft-button.is-loading {
+  display: inline-flex;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.fd-soft-button.is-loading .fd-button-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-width: 0.125rem;
+}
+
 .fd-avatar {
   border: 0;
   border-radius: var(--radius-pill);
@@ -409,6 +421,18 @@ button.fd-badge:disabled {
   background: linear-gradient(242deg, var(--color-purple-soft), var(--color-purple-deep));
 }
 
+.fd-book-cover.has-cover {
+  background: none;
+  overflow: hidden;
+}
+
+.fd-book-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .fd-book-cover span {
   font-size: var(--font-size-title);
 }
@@ -520,6 +544,7 @@ button.fd-badge:disabled {
   background: var(--color-review-memory);
   cursor: pointer;
   user-select: none;
+  touch-action: manipulation;
 }
 
 .fd-timeline-step.is-active.is-opening {
@@ -1850,6 +1875,13 @@ button.fd-badge:disabled {
   gap: var(--space-4);
 }
 
+.fd-community-book .fd-book-cover {
+  width: 3.25rem;
+  height: 4.375rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+}
+
 .fd-community-book span {
   color: var(--color-brand-warm);
   font-size: var(--font-size-caption);
@@ -2061,48 +2093,9 @@ button.fd-badge:disabled {
   gap: var(--space-3);
 }
 
-.fd-review-cover {
-  display: inline-flex;
-  position: relative;
+.fd-ai-review-page .fd-review-book-head .fd-book-cover {
   width: 2.25rem;
   height: 3rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(160deg, var(--color-accent-gradient-start), var(--color-accent-gradient-end));
-  box-shadow: var(--shadow-card);
-}
-
-.fd-review-cover span {
-  position: relative;
-  width: 0.125rem;
-  height: 0.875rem;
-  border-radius: var(--radius-pill);
-  background: var(--color-review-green);
-  transform: rotate(16deg);
-}
-
-.fd-review-cover span::before,
-.fd-review-cover span::after {
-  position: absolute;
-  width: 0.4375rem;
-  height: 0.25rem;
-  border-radius: var(--radius-pill) var(--radius-pill) 0 var(--radius-pill);
-  background: var(--color-review-green);
-  content: '';
-}
-
-.fd-review-cover span::before {
-  top: 0.0625rem;
-  left: -0.5rem;
-  transform: rotate(-26deg);
-}
-
-.fd-review-cover span::after {
-  top: -0.125rem;
-  right: -0.5rem;
-  transform: rotate(18deg) scaleX(-1);
 }
 
 .fd-ai-review-page .fd-review-book-head h2 {
@@ -3099,6 +3092,17 @@ button.fd-badge:disabled {
   font-size: var(--font-size-caption);
 }
 
+.fd-summary-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.fd-summary-loading .fd-typing-dots {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
 .fd-review-memory {
   opacity: 0;
   transform: translateY(0.25rem);
@@ -3213,59 +3217,220 @@ button.fd-badge:disabled {
   font-size: var(--font-size-small);
 }
 
-.fd-phone-home {
-  position: relative;
+.fd-phone-home-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   min-height: 100dvh;
-  padding: var(--space-6);
-  background: #1a1a2e;
-  color: #fff;
+  padding: var(--space-4) var(--space-4) var(--space-6);
+  background: var(--color-phone-page-bg);
 }
 
-.fd-phone-status-bar {
+.fd-phone-device {
+  width: min(100%, 24rem);
+  flex: 1;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: var(--space-6);
-  font-size: var(--font-size-caption);
-  font-weight: 700;
+  min-height: 0;
+}
+
+.fd-phone-screen {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  min-height: min(100dvh - 4.5rem, 52rem);
+  overflow: hidden;
+  border: 0.2rem solid var(--color-phone-bezel);
+  border-radius: 2.25rem;
+  box-shadow:
+    0 0 0 0.0625rem rgb(255 255 255 / 8%) inset,
+    0 1.5rem 3rem rgb(0 0 0 / 45%);
 }
 
 .fd-phone-wallpaper {
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: radial-gradient(circle at 20% 20%, #3d5a80, transparent 45%), radial-gradient(circle at 80% 10%, #98c1d9, transparent 35%), linear-gradient(160deg, #1a1a2e, #16213e);
+  background:
+    radial-gradient(circle at 78% 18%, rgb(90 106 138 / 55%) 0%, transparent 42%),
+    radial-gradient(circle at 50% 8%, rgb(255 255 255 / 6%) 0%, transparent 28%),
+    var(--gradient-phone-wallpaper);
 }
 
-.fd-phone-apps,
-.fd-phone-dock,
-.fd-reading-widget,
-.fd-phone-back-to-app {
+.fd-phone-wallpaper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgb(255 255 255 / 4%) 0 0.0625rem, transparent 0.125rem),
+    radial-gradient(circle at 70% 12%, rgb(255 255 255 / 3%) 0 0.0625rem, transparent 0.125rem),
+    radial-gradient(circle at 40% 60%, rgb(255 255 255 / 3%) 0 0.0625rem, transparent 0.125rem);
+  background-size: 4.5rem 4.5rem, 6rem 6rem, 5rem 5rem;
+  opacity: 0.55;
+}
+
+.fd-phone-status-bar,
+.fd-phone-content,
+.fd-phone-bottom-chrome {
   position: relative;
   z-index: 1;
 }
 
-.fd-phone-apps {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-8);
+.fd-phone-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + var(--space-4)) var(--space-6) var(--space-3);
+  color: var(--color-phone-status);
 }
 
-.fd-phone-app span,
-.fd-phone-dock-app span {
+.fd-phone-status-time {
+  font-size: var(--font-size-status);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.fd-phone-status-icons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.fd-phone-status-icon {
   display: block;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.85rem;
-  background: rgb(255 255 255 / 18%);
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-phone-status);
 }
 
-.fd-phone-app {
+.fd-phone-status-signal {
+  width: 1.125rem;
+}
+
+.fd-phone-status-battery {
+  width: 1.5rem;
+  height: 0.75rem;
+}
+
+.fd-phone-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: var(--space-5) var(--space-5) 0;
+}
+
+.fd-phone-bottom-chrome {
+  margin-top: auto;
+  padding: 0 var(--space-5) calc(env(safe-area-inset-bottom, 0px) + var(--space-2));
+}
+
+.fd-phone-page-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.fd-phone-page-fold {
+  width: 0.875rem;
+  height: 0.5rem;
+  margin-right: var(--space-1);
+  border-top: 0.125rem solid rgb(255 255 255 / 70%);
+  border-bottom: 0.125rem solid rgb(255 255 255 / 70%);
+  border-radius: 0.125rem;
+}
+
+.fd-phone-page-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-phone-page-dot);
+}
+
+.fd-phone-page-dot--active {
+  background: var(--color-phone-page-dot-active);
+}
+
+.fd-phone-dock {
+  display: flex;
+  justify-content: space-around;
+  padding: 0 var(--space-2) var(--space-4);
+}
+
+.fd-phone-dock-app {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   align-items: center;
-  font-size: var(--font-size-micro);
+}
+
+.fd-phone-dock-icon {
+  display: flex;
+  width: 3.25rem;
+  height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.125rem;
+  background: var(--phone-icon-bg, var(--color-phone-icon-bg));
+  color: #fff;
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 18%);
+}
+
+.fd-phone-dock-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.fd-phone-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-9) var(--space-3);
+  background: var(--color-phone-nav-bar);
+}
+
+.fd-phone-nav-btn {
+  display: block;
+  color: #fff;
+}
+
+.fd-phone-nav-btn--recent {
+  width: 1rem;
+  height: 0.875rem;
+  border-left: 0.125rem solid currentColor;
+  box-shadow:
+    0.1875rem 0 0 currentColor,
+    0.375rem 0 0 currentColor;
+}
+
+.fd-phone-nav-btn--home {
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 0.125rem solid currentColor;
+  border-radius: 0.3rem;
+}
+
+.fd-phone-nav-btn--back {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-top: 0.125rem solid currentColor;
+  border-left: 0.125rem solid currentColor;
+  transform: rotate(-45deg);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .fd-reading-widget {
@@ -3276,7 +3441,7 @@ button.fd-badge:disabled {
   flex-direction: column;
   gap: var(--space-6);
   width: 100%;
-  margin: var(--space-8) 0;
+  margin: 0;
   padding: var(--space-9);
   border: 0;
   border-radius: var(--radius-widget);
@@ -3394,19 +3559,36 @@ button.fd-badge:disabled {
   transform: scale(0.995);
 }
 
-.fd-phone-dock {
-  display: flex;
-  justify-content: space-around;
-  margin-top: 30vh;
-  padding: var(--space-4);
-  border-radius: var(--radius-pill);
-  background: rgb(255 255 255 / 12%);
-}
-
 .fd-phone-back-to-app {
   display: block;
-  margin-top: var(--space-6);
-  color: rgb(255 255 255 / 80%);
+  margin-top: var(--space-5);
+  color: rgb(255 255 255 / 72%);
   font-size: var(--font-size-caption);
   text-align: center;
+  text-decoration: none;
+}
+
+.fd-phone-back-to-app:hover {
+  color: rgb(255 255 255 / 92%);
+}
+
+@media (max-width: 480px) {
+  .fd-phone-home-page {
+    padding: 0;
+  }
+
+  .fd-phone-device {
+    width: 100%;
+  }
+
+  .fd-phone-screen {
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .fd-phone-back-to-app {
+    padding: var(--space-4);
+  }
 }

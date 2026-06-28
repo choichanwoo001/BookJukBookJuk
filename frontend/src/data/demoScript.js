@@ -6,6 +6,7 @@ export const DEMO_TIMING = {
   streamChunkMs: 35,
   streamPauseMs: 180,
   saveMs: 750,
+  chatSaveMs: 1000,
   syncReceiptMs: 800,
   syncShelfMs: 1200,
   staggerSectionMs: 400,
@@ -13,6 +14,7 @@ export const DEMO_TIMING = {
   staggerKeywordMs: 120,
   feedSkeletonMs: 800,
   reviewDraftThinkMs: 1500,
+  summaryThinkMs: 1000,
   memoryRevealMs: 400,
 };
 

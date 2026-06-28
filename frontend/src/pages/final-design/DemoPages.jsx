@@ -192,25 +192,128 @@ export function SignupPage() {
   );
 }
 
+const PHONE_DOCK_APPS = [
+  {
+    id: 'phone',
+    label: '전화',
+    bg: 'var(--color-phone-icon-bg)',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M8.2 4.8c.4-.9 1.3-1.4 2.3-1.2l1.8.4c.9.2 1.5 1 1.5 1.9 0 .8-.4 1.5-1 2l-1 .8c1.2 2.2 3 4 5.2 5.2l.8-1c.5-.6 1.2-1 2-.9.9 0 1.7.6 1.9 1.5l.4 1.8c.2 1-.3 1.9-1.2 2.3-1 .5-2.1.8-3.2.8-5.8 0-10.5-4.7-10.5-10.5 0-1.1.3-2.2.8-3.2z"
+          fill="currentColor"
+        />
+      </svg>
+    ),
+  },
+  {
+    id: 'messages',
+    label: '메시지',
+    bg: 'var(--color-phone-icon-bg-alt)',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M6 5.5h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9.4L6 19.8V7.5a2 2 0 0 1 2-2z"
+          fill="currentColor"
+        />
+        <circle cx="9.5" cy="11.5" r="0.9" fill="#fff" />
+        <circle cx="12" cy="11.5" r="0.9" fill="#fff" />
+        <circle cx="14.5" cy="11.5" r="0.9" fill="#fff" />
+      </svg>
+    ),
+  },
+  {
+    id: 'internet',
+    label: '인터넷',
+    bg: 'var(--color-phone-icon-bg)',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+        <ellipse cx="12" cy="12" rx="3.2" ry="8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M4.5 12h15M6.5 8h11M6.5 16h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: 'camera',
+    label: '카메라',
+    bg: 'var(--color-phone-icon-bg-alt)',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M7 7.5h3.2l1-1.5h3.6l1 1.5H19a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2z"
+          fill="currentColor"
+        />
+        <circle cx="13" cy="13.5" r="3.2" fill="none" stroke="#ffffff" strokeWidth="1.6" />
+      </svg>
+    ),
+  },
+];
+
+function PhoneStatusBar() {
+  const now = new Date();
+  const timeLabel = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  return (
+    <header className="fd-phone-status-bar" aria-label="상태 표시줄">
+      <span className="fd-phone-status-time">{timeLabel}</span>
+      <div className="fd-phone-status-icons" aria-hidden="true">
+        <svg className="fd-phone-status-icon fd-phone-status-wifi" viewBox="0 0 24 24">
+          <path d="M4.5 9.5c4.5-4.5 10.5-4.5 15 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M7.5 12.5c2.8-2.8 6.2-2.8 9 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M10.5 15.5c1.1-1.1 2.9-1.1 4 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="12.5" cy="18" r="1.2" fill="currentColor" />
+        </svg>
+        <svg className="fd-phone-status-icon fd-phone-status-signal" viewBox="0 0 24 24">
+          <rect x="3" y="14" width="3" height="7" rx="1" fill="currentColor" />
+          <rect x="8" y="11" width="3" height="10" rx="1" fill="currentColor" />
+          <rect x="13" y="8" width="3" height="13" rx="1" fill="currentColor" />
+          <rect x="18" y="5" width="3" height="16" rx="1" fill="currentColor" />
+        </svg>
+        <svg className="fd-phone-status-icon fd-phone-status-battery" viewBox="0 0 28 14">
+          <rect x="1" y="2" width="22" height="10" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <rect x="24" y="5" width="2.5" height="4" rx="1" fill="currentColor" />
+          <rect x="3.2" y="4" width="16" height="6" rx="1.2" fill="currentColor" />
+        </svg>
+      </div>
+    </header>
+  );
+}
+
 function PhoneWidgetDemoPage({ message, onWidgetClick }) {
   return (
-    <div className="fd-phone-home">
-      <div className="fd-phone-status-bar">
-        <span>9:41</span>
-        <span>5G ▮▮▮</span>
+    <div className="fd-phone-home-page">
+      <div className="fd-phone-device" role="presentation">
+        <div className="fd-phone-screen">
+          <div className="fd-phone-wallpaper" aria-hidden="true" />
+          <PhoneStatusBar />
+          <main className="fd-phone-content">
+            <ReadingWidget onClick={onWidgetClick} message={message} />
+          </main>
+          <footer className="fd-phone-bottom-chrome">
+            <div className="fd-phone-page-indicator" aria-hidden="true">
+              <span className="fd-phone-page-fold" />
+              <span className="fd-phone-page-dot" />
+              <span className="fd-phone-page-dot fd-phone-page-dot--active" />
+              <span className="fd-phone-page-dot" />
+              <span className="fd-phone-page-dot" />
+            </div>
+            <nav className="fd-phone-dock" aria-label="고정 앱">
+              {PHONE_DOCK_APPS.map((app) => (
+                <div className="fd-phone-dock-app" key={app.id} style={{ '--phone-icon-bg': app.bg }}>
+                  <span className="fd-phone-dock-icon">{app.icon}</span>
+                  <span className="visually-hidden">{app.label}</span>
+                </div>
+              ))}
+            </nav>
+            <div className="fd-phone-nav-bar" aria-hidden="true">
+              <span className="fd-phone-nav-btn fd-phone-nav-btn--recent" />
+              <span className="fd-phone-nav-btn fd-phone-nav-btn--home" />
+              <span className="fd-phone-nav-btn fd-phone-nav-btn--back" />
+            </div>
+          </footer>
+        </div>
       </div>
-      <div className="fd-phone-wallpaper" />
-      <div className="fd-phone-apps">
-        {['전화', '메시지', '카메라', '사진'].map((app) => (
-          <div className="fd-phone-app" key={app}><span /><small>{app}</small></div>
-        ))}
-      </div>
-      <ReadingWidget onClick={onWidgetClick} message={message} />
-      <nav className="fd-phone-dock">
-        {['전화', 'Safari', '메시지', '음악'].map((app) => (
-          <div className="fd-phone-dock-app" key={app}><span /></div>
-        ))}
-      </nav>
       <Link className="fd-phone-back-to-app" to="/">앱으로 돌아가기</Link>
     </div>
   );

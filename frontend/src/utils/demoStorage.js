@@ -3,6 +3,15 @@ const KEYS = {
   postedReview: 'bookjuk.postedReview',
 };
 
+import { getBookCover } from '../data/bookCovers.js';
+
+const LEGACY_KEYS = ['bookjuk.sectionProgress', 'bookjuk.demoSession', 'bookjuk.shelfSync'];
+
+const SHELF_BOOK_DEFINITIONS = [
+  { id: 'reading-1', icon: '🌱', title: '어른이 된다는 것', author: '김혜진', pages: 224, tone: 'brown' },
+  { id: 'reading-3', icon: '🌙', title: '단 한 사람', author: '정이현', pages: 256, tone: 'gold' },
+];
+
 const DEFAULT_DEMO_SESSION = {
   chatTurns: 0,
   highlightCount: 0,
@@ -12,8 +21,13 @@ const DEFAULT_DEMO_SESSION = {
 
 /** 새로고침 시 초기화 — 세션 동안만 유지 */
 const sectionProgressMap = {};
+const sectionProgressListeners = new Set();
 let demoSessionState = { ...DEFAULT_DEMO_SESSION };
 let shelfSyncIds = [];
+
+function notifySectionProgress() {
+  sectionProgressListeners.forEach((listener) => listener());
+}
 
 function readJson(key, fallback) {
   try {
@@ -88,6 +102,12 @@ export function getSectionProgress(bookId) {
 
 export function setSectionProgress(bookId, readCount) {
   sectionProgressMap[bookId] = Math.max(0, Number(readCount) || 0);
+  notifySectionProgress();
+}
+
+export function subscribeSectionProgress(listener) {
+  sectionProgressListeners.add(listener);
+  return () => sectionProgressListeners.delete(listener);
 }
 
 const JOURNEY_SEGMENT_COUNT = 5;
@@ -97,46 +117,38 @@ function getShelfProgressPercent(bookId) {
   return Math.round((readCount / JOURNEY_SEGMENT_COUNT) * 100);
 }
 
-function isNewlyAddedBook(bookId) {
-  return getShelfSyncBookIds().includes(bookId) && getSectionProgress(bookId) === 0;
+function getShelfBookNote(bookId) {
+  const readCount = getSectionProgress(bookId);
+  if (readCount === 0) return '방금 추가된 책이에요';
+  if (readCount === 1) return '1구간을 읽고 있어요';
+  if (readCount === 2) return '2구간을 기다리고 있어요';
+  return '꾸준히 읽고 있어요';
+}
+
+export function resetDemoOnPageLoad() {
+  Object.keys(sectionProgressMap).forEach((bookId) => {
+    delete sectionProgressMap[bookId];
+  });
+  notifySectionProgress();
+  demoSessionState = { ...DEFAULT_DEMO_SESSION };
+  shelfSyncIds = [];
+
+  window.localStorage.removeItem(KEYS.user);
+  window.localStorage.removeItem(KEYS.postedReview);
+  LEGACY_KEYS.forEach((key) => {
+    window.localStorage.removeItem(key);
+  });
 }
 
 export function getShelfBooks() {
-  const reading1IsNew = isNewlyAddedBook('reading-1');
-
-  return [
-    {
-      id: 'reading-1',
-      icon: '🌱',
-      title: '어른이 된다는 것',
-      author: '김혜진',
-      pages: 224,
-      tone: 'brown',
-      progress: getShelfProgressPercent('reading-1'),
-      state: reading1IsNew ? 'NEW' : '읽는 중',
-      note: reading1IsNew ? '방금 추가된 책이에요' : '1구간을 읽고 있어요',
-    },
-    {
-      id: 'reading-2',
-      icon: '🌊',
-      title: '오직 두 사람',
-      author: '김영하',
-      pages: 292,
-      tone: 'blue',
-      progress: 62,
-      state: '읽는 중',
-      note: '2구간을 기다리고 있어요',
-    },
-    {
-      id: 'reading-3',
-      icon: '🌙',
-      title: '단 한 사람',
-      author: '정이현',
-      pages: 256,
-      tone: 'gold',
-      progress: 28,
-      state: '읽는 중',
-      note: '꾸준히 읽고 있어요',
-    },
-  ];
+  return SHELF_BOOK_DEFINITIONS.map((book) => {
+    const progress = getShelfProgressPercent(book.id);
+    return {
+      ...book,
+      cover: getBookCover(book.id),
+      progress,
+      state: progress === 0 ? 'NEW' : '읽는 중',
+      note: getShelfBookNote(book.id),
+    };
+  });
 }

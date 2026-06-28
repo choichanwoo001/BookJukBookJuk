@@ -73,6 +73,25 @@
   --color-widget-next-day-badge: #FCECD4;
   --color-widget-next-day-chip: #FAE6C8;
   --gradient-widget-next-day: linear-gradient(180deg, var(--color-widget-next-day-start) 0%, var(--color-widget-next-day-end) 100%);
+  /* phone-home OS chrome (Samsung One UI inspired) */
+  --color-phone-page-bg: #0a0c10;
+  --color-phone-bezel: #050608;
+  --color-phone-wallpaper-top: #2a3348;
+  --color-phone-wallpaper-mid: #1a2030;
+  --color-phone-wallpaper-bottom: #080a0f;
+  --color-phone-wallpaper-glow: #5a6a8a;
+  --color-phone-icon-bg: #c8b8dc;
+  --color-phone-icon-bg-alt: #b8aad0;
+  --color-phone-status: #ffffff;
+  --color-phone-nav-bar: #000000;
+  --color-phone-page-dot: rgb(255 255 255 / 35%);
+  --color-phone-page-dot-active: #ffffff;
+  --gradient-phone-wallpaper: linear-gradient(
+    180deg,
+    var(--color-phone-wallpaper-top) 0%,
+    var(--color-phone-wallpaper-mid) 42%,
+    var(--color-phone-wallpaper-bottom) 100%
+  );
   --color-widget-headline: #2D2D2D;
   --color-widget-subtext: #8D8D8D;
   --color-widget-status: #8D8D8D;

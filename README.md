@@ -1,192 +1,129 @@
-# BookJukBookJuk (책국책국)
+# BookJukBookJuk 책국책국
 
-> "책과 더 가까워지는 순간" — 소셜 도서 발견, AI 추천, 독서 어시스턴트 Paige를 결합한 모바일 웹앱
+> AI 독서 도우미 **Paige**와 개인화 추천을 결합한 모바일 독서 경험 서비스  
+> 책을 발견하고, 읽고, 대화하고, 기록으로 남기는 과정을 하나의 흐름으로 설계했습니다.
 
----
+![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=111111)
+![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat-square&logo=vite&logoColor=ffffff)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.1-009688?style=flat-square&logo=fastapi&logoColor=ffffff)
+![OpenAI](https://img.shields.io/badge/OpenAI-API-111111?style=flat-square&logo=openai&logoColor=ffffff)
+![Supabase](https://img.shields.io/badge/Supabase-DB-3FCF8E?style=flat-square&logo=supabase&logoColor=111111)
+![Knowledge Graph](https://img.shields.io/badge/Knowledge_Graph-Recommendation-C28B56?style=flat-square)
+![Vector Search](https://img.shields.io/badge/Vector_Search-Embeddings-92C7CF?style=flat-square)
 
-## 문서 목차
+## Screens
 
-- [Paige 에이전트 설계](#paige-에이전트-설계)
-- [프론트엔드 구조](#프론트엔드-구조)
-- [AI 백엔드 구조](#ai-백엔드-구조)
+| Home | Paige Chat | AI Review |
+|---|---|---|
+| ![Home](docs/readme/home.png) | ![Paige Chat](docs/readme/paige-chat.png) | ![AI Review](docs/readme/ai-review.png) |
 
----
+## 프로젝트 소개
 
-## Paige 에이전트 설계
+**책국책국**은 독서가 단순히 “읽고 끝나는 일”이 아니라, 생각을 정리하고 다른 책으로 확장되는 경험이 되도록 만든 모바일 웹 앱입니다.
 
-핵심 설계 문서는 아래 flow 문서를 참고해 주세요.
+사용자는 읽는 중인 책을 중심으로 독서 구간을 기록하고, AI 독서 도우미 Paige와 대화하며, 하이라이트와 요약을 남기고, 마지막에는 리뷰 초안까지 도움받을 수 있습니다. 별점과 리뷰만 남기는 기존 독서 기록 서비스보다 **읽는 과정의 맥락**을 더 중요하게 다루는 것이 핵심입니다.
 
-- `Paige_agent_flow_docs.md`: `ai/paigee/docs/Paigee_agent_flow_docs.md`
-- `Paige_database_schema.md`: `ai/paigee/docs/Paigee_database_schema.md`
-- API 전체 목록: `ai/paigee/docs/API_Index.md`
-- 인증 API: `ai/paigee/docs/API_Auth.md`
+## 핵심 사용자 경험
 
----
-
-## 프론트엔드 구조
-
-`frontend/src/` 기준으로 작성된 문서입니다.
-
-### 기술 스택
-
-| 항목 | 내용 |
-|------|------|
-| 프레임워크 | React 18 + Vite |
-| 라우팅 | React Router v6 |
-| 상태 관리 | React hooks (useState) — Redux/Context 없음 |
-| 지도 | React-Leaflet (OpenStreetMap) |
-| 스타일링 | CSS Custom Properties 기반 디자인 시스템 |
-
----
-
-### 라우팅 구조 (`App.jsx`)
-
-```
-BrowserRouter
-├── /login                         → Login (레이아웃 없음)
-├── Layout (BottomNav 포함)
-│   ├── /                          → Home
-│   ├── /book/:id                  → BookDetail
-│   ├── /book/:id/comment/:commentId → CommentDetail
-│   ├── /book/:id/chat             → BookChat
-│   ├── /library                   → Library
-│   ├── /my                        → My
-│   ├── /my/chat                   → MyChat
-│   ├── /my/taste-analysis         → TasteAnalysisDetail
-│   ├── /section/:sectionId        → SectionBooks
-│   └── /collection/:sectionId     → CollectionDetail
-├── /search                        → Search (레이아웃 없음, 전체화면)
-└── *                              → / 로 리다이렉트
+```mermaid
+flowchart LR
+  Discover["책 발견"] --> Reading["읽기 기록"]
+  Reading --> Chat["Paige와 대화"]
+  Chat --> Highlight["하이라이트 저장"]
+  Highlight --> Summary["AI 요약"]
+  Summary --> Review["리뷰 제안"]
+  Review --> Community["커뮤니티 공유"]
+  Review --> Recommend["개인화 추천"]
 ```
 
-> **주의:** 채팅 페이지(`/chat`)에서는 `Layout` 컴포넌트가 자동으로 BottomNav를 숨깁니다.
+- **읽는 중인 책 중심 홈**: 현재 책, 진행률, 구간별 독서 여정을 한 화면에서 확인합니다.
+- **책별 Paige 채팅**: 특정 책과 구간을 컨텍스트로 삼아 감상과 질문을 이어갑니다.
+- **하이라이트와 요약**: 인상 깊은 문장과 메모를 저장하고, Paige가 오늘의 독서를 요약합니다.
+- **AI 리뷰 제안**: 대화와 하이라이트를 바탕으로 리뷰 초안을 제안하되, 최종 게시 권한은 사용자에게 둡니다.
+- **서재와 커뮤니티**: 읽는 중인 책, 완독 기록, 다른 독자의 리뷰를 함께 탐색합니다.
 
----
+## 주요 기능
 
-### 페이지 목록
+| 영역 | 설명 |
+|---|---|
+| 모바일 독서 홈 | 읽는 책, 현재 페이지, 구간별 진행 상태를 카드와 타임라인으로 표현 |
+| Paige 책별 채팅 | 책 제목과 읽은 범위를 기반으로 독서 대화를 이어가는 인터페이스 |
+| 하이라이트 저장 | 문장, 감정 태그, 개인 메모를 함께 기록하는 독서 노트 흐름 |
+| 오늘의 요약 | 저장된 대화와 하이라이트를 바탕으로 AI 요약 카드 제공 |
+| AI 리뷰 작성 | 독서 대화 회고, 질문 프롬프트, 리뷰 초안 생성 UX 설계 |
+| 책 검색/서재 | 책 추가, 읽는 중인 책 목록, 완독/진행 상태 관리 화면 |
+| 커뮤니티 | 별점뿐 아니라 독서 기간, 대화 횟수, 하이라이트 등 독서 흔적을 함께 노출 |
 
-| 파일 | 라우트 | 설명 |
-|------|--------|------|
-| `Home.jsx` | `/` | 홈 화면. BookSection 단위로 위시리스트·HOT 랭킹·별점 높은 작품·추천 도서를 가로 스크롤로 표시 |
-| `Login.jsx` | `/login` | 네이버·구글·카카오 소셜 로그인 (현재 mock) |
-| `Library.jsx` | `/library` | 내 책 컬렉션. 탭: 평가함 / 좋아요 / 읽는 중 / 구매 목록 |
-| `My.jsx` | `/my` | 프로필·활동 통계·취향 분석 요약·내 컬렉션·Paige 진입 버튼 |
-| `Search.jsx` | `/search` | 전체 화면 검색. 탭: 책 / 작가 / 컬렉션 / 유저 (책 탭만 구현) |
-| `BookDetail.jsx` | `/book/:id` | 책 상세. 별점 입력, 컬렉션 추가, 코멘트, 지도, AI 캐릭터 버튼 |
-| `BookChat.jsx` | `/book/:id/chat` | 책 전용 AI 채팅. mock 응답 생성기 포함 |
-| `MyChat.jsx` | `/my/chat` | 전체 도우미 Paige 채팅. 추천·컬렉션·독서 진행 안내 |
-| `CommentDetail.jsx` | `/book/:id/comment/:commentId` | 코멘트 상세. 좋아요·답글·공유 |
-| `SectionBooks.jsx` | `/section/:sectionId` | 섹션 내 전체 책 그리드 |
-| `CollectionDetail.jsx` | `/collection/:sectionId` | 컬렉션 상세. 책 목록·코멘트 |
-| `TasteAnalysisDetail.jsx` | `/my/taste-analysis` | 취향 분석 상세. 별점 분포 차트·선호 태그·장르 |
+## AI 기능
 
----
+### Paige Agent
 
-### 컴포넌트 목록
+Paige는 책국책국의 AI 독서 도우미입니다. 단순 챗봇이 아니라 사용자의 독서 상태와 책 컨텍스트를 바탕으로 다음 행동을 제안하는 에이전트로 설계했습니다.
 
-| 파일 | 설명 |
-|------|------|
-| `Layout.jsx` | 앱 전체 레이아웃 래퍼. `<Outlet>` + BottomNav 조합 |
-| `BottomNav.jsx` | 하단 탭 바 (홈·서재·마이) |
-| `BackButton.jsx` | 뒤로가기 버튼. `to` prop 지정 시 해당 경로로 이동, 없으면 `navigate(-1)` |
-| `BookSection.jsx` | 제목 + 가로 스크롤 BookCard 리스트. "더보기" 버튼으로 `/section/:id` 이동 |
-| `BookCard.jsx` | 책 카드 단일 컴포넌트. `variant="default"` (세로) / `"grid"` (정방형) |
-| `PopularComments.jsx` | 코멘트 목록 + 평점 분포 차트 (RatingChart 내장) |
-| `StarDisplay.jsx` | 읽기 전용 별점 표시 (0.5 단위 반별 지원) |
-| `StoreMap.jsx` | React-Leaflet 기반 서점 위치 지도 |
+- `state_change`: 읽는 중, 별점 등록, 리뷰 작성 등 독서 상태 변경
+- `book_qna_collect`: 책별 질문과 감상 수집
+- `review_assist`: 대화와 하이라이트 기반 리뷰 초안 제안
+- `review_nudge`: 리뷰 작성을 돕는 질문과 리마인드
+- `book_recommend`: 사용자 맥락 기반 도서 추천
+- `smalltalk`: 자연스러운 일상 대화와 독서 흐름 연결
 
----
+중요한 원칙은 **AI가 리뷰를 자동 게시하지 않는 것**입니다. Paige는 초안과 질문을 제안하지만, 최종 제출은 항상 사용자가 직접 수행하도록 설계했습니다.
 
-### 커스텀 훅
+### Hybrid Recommendation
 
-| 파일 | 설명 |
-|------|------|
-| `hooks/useChat.js` | 채팅 공통 로직. `messages`, `input`, `isLoading`, `handleSend`, `handleKeyDown`, `scrollRef` 반환. 응답 함수를 파라미터로 받아 BookChat·MyChat 양쪽에서 재사용 |
-| `hooks/useTab.js` | 탭 상태 관리. `activeTab`, `setActiveTab` 반환 |
+추천 시스템은 단순 인기순 추천이 아니라, 책 메타데이터와 사용자 독서 이력을 함께 사용하는 하이브리드 파이프라인을 목표로 합니다.
 
----
+- **Knowledge Graph**: 책, 작가, 주제, 키워드 관계를 그래프로 구성
+- **Vector Search**: OpenAI 임베딩 기반 의미 유사도 계산
+- **RippleNet Scoring**: 그래프 기반 사용자 선호 전파 모델 활용
+- **Hybrid Score**: Graph score와 Vector score를 결합
+- **Diversity/XAI**: MMR 다양성 보정과 LLM 기반 추천 이유 생성
 
-### 데이터 파일
+## Architecture
 
-현재 프론트엔드는 백엔드와 연결되지 않은 **mock 데이터**로 동작합니다.
-
-| 파일 | 설명 |
-|------|------|
-| `data/dummyBooks.js` | 핵심 mock DB. `SECTIONS` 배열(4개 섹션), `enrichBookDetail()`, `getBookById()`, `getCommentById()` 포함 |
-| `data/imagePool.js` | 책 커버 이미지 풀. `pickImageBySeed(id)` 로 ID 기반 일관된 이미지 선택 |
-| `data/constants.js` | 앱 공통 상수. `CHARACTER_IMG` (캐릭터 이미지 경로) 등 |
-
-**dummyBooks 데이터 구조:**
-```js
-{
-  id, title, rating,          // 기본 정보
-  image, authors, description, authorBio,
-  productionYear, pages, ageRating, category,
-  popularComments: [...],     // 코멘트 배열
-  storeLocation: { lat, lng } // 서점 좌표
-}
+```mermaid
+flowchart LR
+  User["User"] --> Frontend["React Mobile Web"]
+  Frontend --> Backend["FastAPI API"]
+  Backend --> Supabase["Supabase DB"]
+  Backend --> AI["AI Pipeline"]
+  AI --> Paige["Paige Agent Design"]
+  AI --> BookChat["Book Q&A"]
+  AI --> Recommender["Hybrid Recommender"]
+  Recommender --> KG["Knowledge Graph"]
+  Recommender --> Vector["Vector Store"]
 ```
 
----
+## 기술적 구현 포인트
 
-### 디자인 시스템 (`styles/tokens.css`)
+- **모바일 우선 UI**: React 18과 Vite 기반 SPA로 구현하고, 실제 앱처럼 하단 탭과 모바일 화면 폭을 기준으로 설계했습니다.
+- **경험 중심 플로우**: 홈, 채팅, 하이라이트, 요약, 리뷰 작성이 끊기지 않도록 독서 구간 기반의 흐름을 구성했습니다.
+- **FastAPI 백엔드**: 책 검색, 책 상세, 댓글, 컬렉션, 추천 API를 분리된 라우터 구조로 구성했습니다.
+- **Supabase 연동 구조**: 사용자, 책, 컬렉션, 리뷰, 추천 파이프라인 데이터를 저장할 수 있는 스키마와 시드 스크립트를 정리했습니다.
+- **AI 추천 파이프라인**: KG 생성, 임베딩 저장, 사용자 프로필 스코어링, 다양성 보정, 설명 생성을 단계별 모듈로 분리했습니다.
+- **Paige 설계 문서화**: 채널 어댑터와 Core Orchestrator를 분리해 MyPage, 책 상세, 오프라인 서점 채널로 확장 가능한 구조를 설계했습니다.
 
-모든 색상·타이포그래피는 CSS Custom Properties로 관리합니다. **컴포넌트에 값을 하드코딩하지 마세요.**
+## Project Structure
 
-**팔레트:**
-
-| 변수 | 값 | 용도 |
-|------|----|------|
-| `--palette-cyan-main` | `#92C7CF` | 브랜드 주색 |
-| `--palette-cyan-soft` | `#AAD7D9` | 브랜드 보조색 |
-| `--palette-cream` | `#FBF9F1` | 배경 기본 |
-| `--palette-warm-gray` | `#E5E1DA` | 서피스·테두리 |
-
-**시맨틱 색상 변수 (사용 권장):**
-```css
-var(--color-brand-primary)   /* 주 브랜드색 */
-var(--color-bg-base)         /* 페이지 배경 */
-var(--color-bg-surface)      /* 카드·패널 배경 */
-var(--color-text-primary)    /* 본문 텍스트 */
-var(--color-text-muted)      /* 보조 텍스트 */
-var(--color-rating-star)     /* 별점 골드 */
+```text
+BookJukBookJuk
+├─ frontend/   React + Vite 기반 모바일 웹 앱
+├─ backend/    FastAPI API, Supabase repository/service/router
+├─ ai/         Book Q&A, hybrid recommender, Paige 설계 문서
+└─ docs/       README 이미지와 프로젝트 보조 문서
 ```
 
-**타이포그래피:**
-```css
-var(--font-size-xs)    /* 12px */
-var(--font-size-sm)    /* 13px */
-var(--font-size-md)    /* 14px */
-var(--font-size-base)  /* 15px */
-var(--font-size-lg)    /* 16px */
-var(--font-size-xl)    /* 18px */
-var(--font-size-2xl)   /* 20px */
-var(--font-size-3xl)   /* 22px */
-```
+## 현재 구현 상태
 
-**유틸리티 클래스:**
-```
-.text-title / .text-body / .text-caption
-.text-primary / .text-muted / .text-subtle
-.bg-base / .bg-surface
-.page-container   /* 최대 430px, 중앙 정렬 */
-.page-header      /* sticky 헤더 */
-.hide-scrollbar   /* 크로스브라우저 스크롤바 숨김 */
-```
+| 구분 | 상태 |
+|---|---|
+| 모바일 UI 데모 | 홈, 서재, 책별 채팅, 하이라이트, 요약, 리뷰 작성, 검색, 커뮤니티 화면 구현 |
+| FastAPI API | 책 표지, 추천, 책 검색/상세, 댓글, 컬렉션 API 구조 구현 |
+| Hybrid Recommender | KG, Vector, 사용자 프로필, 다양성 보정, 추천 설명 모듈 구성 |
+| Paige Core | 에이전트 플로우와 DB/API 설계 완료, Core Orchestrator 구현은 진행 예정 |
+| 데이터 연동 | 일부 화면은 데모 데이터 기반, 추천/도서 API는 Supabase 및 AI 파이프라인 연동 구조 보유 |
 
----
+## 한 줄로 정리하면
 
-### 현재 상태 및 다음 작업
-
-- **홈 「OO님의 취향 저격」:** 백엔드 `GET /api/recommendations`가 성공하면 하이브리드 추천 목록으로 채움(실패 시 기존 mock 폴백). 백엔드 실행·Supabase KG/벡터 시드 필요.
-- **그 외 화면:** 대부분 mock. FastAPI는 표지 프록시·추천 외 확장 가능
-- `BookChat.jsx`, `MyChat.jsx`의 mock 응답 함수를 실제 API 호출로 교체해야 함
-- `dummyBooks.js`를 실제 API 응답으로 대체해야 함
-- Paige 에이전트 구현 예정 (`ai/paigee/` 참고)
-
----
-
-## AI 백엔드 구조
-
-자세한 내용은 `CLAUDE.md` 및 `ai/paigee/docs/Paigee_agent_flow_docs.md` 참고.
-
+책국책국은 **독서 기록 서비스에 AI 대화, 요약, 리뷰 제안, 개인화 추천을 연결한 프로젝트**입니다.  
+읽는 순간의 생각을 놓치지 않고, 그 기록이 다음 책과 다음 대화로 이어지도록 설계했습니다.

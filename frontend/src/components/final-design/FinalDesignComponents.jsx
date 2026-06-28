@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 
 import { StreamingText } from './StreamingText.jsx';
@@ -198,8 +198,22 @@ export function SearchBar({ value, placeholder, onChange, onSubmit }) {
   );
 }
 
-export function BookCover({ icon, tone = 'brown', large = false }) {
-  return <div className={`fd-book-cover fd-book-cover--${tone} ${large ? 'is-large' : ''}`}><span>{icon}</span></div>;
+export function BookCover({ icon, cover, tone = 'brown', large = false, alt = '' }) {
+  const className = `fd-book-cover fd-book-cover--${tone} ${large ? 'is-large' : ''} ${cover ? 'has-cover' : ''}`;
+
+  if (cover) {
+    return (
+      <div className={className}>
+        <img src={cover} alt={alt} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={className}>
+      <span>{icon}</span>
+    </div>
+  );
 }
 
 export function CurrentBookCard({ book, complete = false }) {
@@ -211,7 +225,7 @@ export function CurrentBookCard({ book, complete = false }) {
         <span className="fd-card-badge">{complete ? '5구간 완료' : 'NEW'}</span>
       </div>
       <div className="fd-book-main">
-        <BookCover icon={book.icon} large />
+        <BookCover icon={book.icon} cover={book.cover} large alt={book.title} />
         <div>
           <h2>{book.title}</h2>
           <strong>{book.author}</strong>
@@ -253,6 +267,59 @@ export function ReviewPromptCard({ reviewHref }) {
   );
 }
 
+const DOUBLE_ACTIVATE_MS = 320;
+
+function useDoubleActivate(onActivate) {
+  const lastTapRef = useRef(0);
+  const activateRef = useRef(onActivate);
+  activateRef.current = onActivate;
+
+  const onDoubleClick = useCallback((event) => {
+    event.preventDefault();
+    activateRef.current?.();
+  }, []);
+
+  const onTouchEnd = useCallback((event) => {
+    const now = Date.now();
+    if (now - lastTapRef.current <= DOUBLE_ACTIVATE_MS) {
+      event.preventDefault();
+      lastTapRef.current = 0;
+      activateRef.current?.();
+      return;
+    }
+    lastTapRef.current = now;
+  }, []);
+
+  return { onDoubleClick, onTouchEnd };
+}
+
+function JourneyTimelineStep({ step, isJustOpened, onActivate }) {
+  const isActive = step.state === 'active';
+  const { onDoubleClick, onTouchEnd } = useDoubleActivate(onActivate);
+
+  return (
+    <article
+      className={`fd-timeline-step is-${step.state}${isJustOpened ? ' is-opening' : ''}`}
+      onDoubleClick={isActive ? onDoubleClick : undefined}
+      onTouchEnd={isActive ? onTouchEnd : undefined}
+      title={isActive ? '더블클릭하면 이 구간을 읽음 처리하고 다음 구간이 열려요' : undefined}
+    >
+      <div className="fd-timeline-rail">
+        <span>{step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'active' ? <Icon name="star" size={12} /> : <Icon name="lock" size={11} />}</span>
+        <i />
+      </div>
+      <div>
+        <h3>
+          {step.title}
+          {step.state === 'active' ? <em>{isJustOpened ? '다음 구간 열림' : '현재 위치'}</em> : null}
+        </h3>
+        <strong>{step.subtitle}</strong>
+        <p>{step.pages}</p>
+      </div>
+    </article>
+  );
+}
+
 export function JourneyTimeline({
   steps,
   complete = false,
@@ -290,24 +357,12 @@ export function JourneyTimeline({
         {steps.map((step, index) => {
           const isJustOpened = step.state === 'active' && index === openedIndex;
           return (
-          <article
-            className={`fd-timeline-step is-${step.state}${isJustOpened ? ' is-opening' : ''}`}
-            key={step.title}
-            onDoubleClick={step.state === 'active' ? () => onStepDoubleClick?.() : undefined}
-          >
-            <div className="fd-timeline-rail">
-              <span>{step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'active' ? <Icon name="star" size={12} /> : <Icon name="lock" size={11} />}</span>
-              <i />
-            </div>
-            <div>
-              <h3>
-                {step.title}
-                {step.state === 'active' ? <em>{isJustOpened ? '다음 구간 열림' : '현재 위치'}</em> : null}
-              </h3>
-              <strong>{step.subtitle}</strong>
-              <p>{step.pages}</p>
-            </div>
-          </article>
+            <JourneyTimelineStep
+              key={step.title}
+              step={step}
+              isJustOpened={isJustOpened}
+              onActivate={step.state === 'active' ? onStepDoubleClick : undefined}
+            />
           );
         })}
         {showReviewStep ? (
@@ -406,7 +461,7 @@ export function CommunityPost({ post, staggerDelay = 0 }) {
         <Chip icon="check" selected>팔로잉</Chip>
       </div>
       <div className="fd-community-book">
-        <BookCover icon={post.book.icon} tone="purple" />
+        <BookCover icon={post.book.icon} cover={post.book.cover} tone="purple" alt={post.book.title} />
         <div>
           <h4>{post.book.title}</h4>
           <p>{post.book.author}</p>

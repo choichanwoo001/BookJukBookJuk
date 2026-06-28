@@ -1,3 +1,5 @@
+import { getBookCover, getCommunityBookCover } from './bookCovers.js';
+
 export const currentBook = {
   icon: '🌱',
   title: '어른이 된다는 것',
@@ -5,6 +7,7 @@ export const currentBook = {
   pages: 224,
   currentPage: 0,
   rating: 4.0,
+  cover: getBookCover('reading-1'),
 };
 
 export const journeySteps = [
@@ -18,9 +21,8 @@ export const journeySteps = [
 export const completedJourneySteps = journeySteps.map((step) => ({ ...step, state: 'done' }));
 
 export const libraryBooks = [
-  { id: 'reading-1', icon: '🌱', title: '어른이 된다는 것', author: '김혜진', pages: 224, progress: 0, note: '방금 추가된 책이에요', state: 'NEW' },
-  { id: 'reading-2', icon: '🌊', title: '오직 두 사람', author: '김영하', pages: 272, progress: 18, note: '2구간을 기다리고 있어요', state: '읽는 중' },
-  { id: 'reading-3', icon: '🌙', title: '밝은 밤', author: '최은영', pages: 344, progress: 42, note: '꾸준히 읽고 있어요', state: '읽는 중' },
+  { id: 'reading-1', icon: '🌱', title: '어른이 된다는 것', author: '김혜진', pages: 224, progress: 0, note: '방금 추가된 책이에요', state: 'NEW', cover: getBookCover('reading-1') },
+  { id: 'reading-3', icon: '🌙', title: '단 한 사람', author: '정이현', pages: 256, progress: 42, note: '꾸준히 읽고 있어요', state: '읽는 중', cover: getBookCover('reading-3') },
 ];
 
 export const recommendedBooks = [
@@ -53,22 +55,35 @@ export const communityPosts = [
     role: '평론가',
     date: '2025.06.01',
     avatar: '지',
-    book: { icon: '💜', title: '사랑받지 못하는 나를 위한 위로', author: '무라카미 류', rating: '4.0' },
-    review: '"화려하지 않아도 괜찮다는 말을 이렇게 조용히 해주는 책은 흔치 않다"',
+    book: {
+      icon: '📖',
+      title: '교코',
+      author: '무라카미 류',
+      meta: '장편소설 · 민음사 · 212쪽',
+      rating: '4.0',
+      cover: getCommunityBookCover('교코'),
+    },
+    review: '"잃어버린 연인을 기억으로 붙잡는 방식이 서늘하면서도 애틋하게 다가왔다"',
     traces: [
       { label: '18일 꾸준히', icon: 'calendar' },
       { label: '대화 23회', icon: 'quote' },
       { label: '하이라이트 9개', icon: 'pencil' },
     ],
-    quote: '"사랑은 완성형이 아니라 진행형이다"',
-    spoiler: '주인공이 마지막 장에서 관계를 끝내는 대신 자기 마음을 처음으로 직접 말하는 장면이 오래 남았어요.',
+    quote: '"그녀는 내 기억 속에서만 살아 있다"',
+    spoiler: '비행기 사고로 잃은 연인을, 주인공이 일상 속에서 계속 살아 있는 사람처럼 붙잡아 두는 방식이 오래 남았어요.',
   },
   {
     user: '서윤',
     role: '독자',
     date: '2025.05.29',
     avatar: '서',
-    book: { icon: '🦋', title: '작별하지 않는다', author: '한강', rating: '5.0' },
+    book: {
+      icon: '🦋',
+      title: '작별하지 않는다',
+      author: '한강',
+      rating: '5.0',
+      cover: getCommunityBookCover('작별하지 않는다'),
+    },
     review: '"읽고 나서 오래 남는 침묵이 있는 책이었다"',
     traces: [
       { label: '12일 꾸준히', icon: 'calendar' },
